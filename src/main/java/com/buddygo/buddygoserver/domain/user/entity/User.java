@@ -57,4 +57,16 @@ public class User extends BaseEntity {
     @Column(name = "push_enabled", nullable = false)
     @Builder.Default
     private boolean pushEnabled = true;
+
+    /** 이메일(LOCAL) 가입. 이메일은 정규화된 값, 비밀번호는 해시된 값을 받는다. */
+    public static User signUpWithEmail(String email, String passwordHash, String name, String nickname, Gender gender) {
+        return User.builder()
+                .email(email)
+                .passwordHash(passwordHash)
+                .provider(Provider.LOCAL)
+                .name(name)
+                .nickname(nickname)
+                .gender(gender)
+                .build();
+    }
 }
