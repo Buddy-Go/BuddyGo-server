@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17
+    build: ./docker/postgres
+    image: buddygo-postgres:17-postgis
     container_name: buddygo-postgres
     environment:
       POSTGRES_DB: buddygo

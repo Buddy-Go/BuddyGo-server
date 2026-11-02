@@ -1,4 +1,4 @@
-package com.buddygo.buddygoserver.config;
+package com.buddygo.buddygoserver.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
