@@ -36,8 +36,6 @@ out/
 ### VS Code ###
 .vscode/
 
-### Kotlin ###
-.kotlin
 
 ### Env ###
 .env
