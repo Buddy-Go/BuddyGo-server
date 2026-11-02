@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.locationtech.jts.geom.Point;
 
 @Getter
@@ -36,7 +38,8 @@ public class Place extends BaseCreatedEntity {
     private String jibunAddress;
 
     /** 카카오 법정동 코드 */
-    @Column(name = "region_code", nullable = false, columnDefinition = "char(10)")
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "region_code", nullable = false, length = 10)
     private String regionCode;
 
     /** geometry(Point,4326) · GIST 인덱스는 마이그레이션에서 추가 */
