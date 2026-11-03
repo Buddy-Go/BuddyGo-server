@@ -7,6 +7,10 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jpa:
     open-in-view: false
     hibernate:
@@ -15,6 +19,19 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+
+jwt:
+  # HS256 서명 키. 32바이트(영문 기준 32자) 이상이어야 하며 없으면 기동에 실패한다.
+  secret: ${JWT_SECRET}
+  issuer: buddygo
+  audience: buddygo-app
+  access-token-ttl: 30m
+  refresh-token-ttl: 14d
+
+auth:
+  login-attempt:
+    max-failures: 5
+    window: 15m
 
 springdoc:
   swagger-ui:
