@@ -82,6 +82,11 @@ public class Participation {
                 .build();
     }
 
+    /** 대기 중인 신청을 신청자가 취소한다. 매너온도 영향은 없다. */
+    public void cancel() {
+        this.status = ParticipationStatus.CANCELED;
+    }
+
     public boolean isPending() {
         return status == ParticipationStatus.PENDING;
     }

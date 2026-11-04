@@ -22,4 +22,10 @@ public class ApplicationController implements ApplicationApi {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(SuccessResponse.created(applicationCommandService.apply(userId, gatheringId, message)));
     }
+
+    @Override
+    public ResponseEntity<SuccessResponse<Void>> cancelMine(Long userId, Long gatheringId) {
+        applicationCommandService.cancelMine(userId, gatheringId);
+        return ResponseEntity.ok(SuccessResponse.ok());
+    }
 }

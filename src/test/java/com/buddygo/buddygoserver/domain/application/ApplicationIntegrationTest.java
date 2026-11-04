@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -160,6 +161,39 @@ class ApplicationIntegrationTest {
         }
     }
 
+    @Nested
+    class 신청_취소 {
+
+        @Test
+        void 대기_중인_신청을_취소하고_다시_신청할_수_있다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            apply(alice, gathering, "{}").andExpect(status().isCreated());
+
+            cancelMine(alice, gathering).andExpect(status().isOk());
+            flushAndClear();
+            assertThat(participationRepository.findActive(gathering.getId(), alice.getId())).isEmpty();
+
+            apply(alice, gathering, "{}").andExpect(status().isCreated());
+        }
+
+        @Test
+        void 신청이_없으면_AP001() throws Exception {
+            cancelMine(alice, gathering(START, 3))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("AP001"));
+        }
+
+        @Test
+        void 확정된_뒤에는_AP005() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            confirmed(gathering, alice);
+
+            cancelMine(alice, gathering)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("AP005"));
+        }
+    }
+
     // ───────── helpers ─────────
 
     private User user(String name, Gender gender) {
@@ -184,6 +218,18 @@ class ApplicationIntegrationTest {
         return mockMvc.perform(post("/api/gatherings/{id}/applications", gathering.getId())
                 .header(HttpHeaders.AUTHORIZATION, bearer(user))
                 .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    private ResultActions cancelMine(User user, Gathering gathering) throws Exception {
+        return mockMvc.perform(delete("/api/gatherings/{id}/applications/me", gathering.getId())
+                .header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
+
+    /** 수락 API 를 거치지 않고 확정 참가자를 만든다. */
+    private Participation confirmed(Gathering gathering, User user) {
+        return participationRepository.save(Participation.builder()
+                .gathering(gathering).user(user).status(ParticipationStatus.CONFIRMED)
+                .appliedAt(NOW).decidedAt(NOW).build());
     }
 
     private String bearer(User user) {

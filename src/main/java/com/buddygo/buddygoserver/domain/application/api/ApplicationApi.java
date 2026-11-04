@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,4 +36,13 @@ public interface ApplicationApi {
     ResponseEntity<SuccessResponse<ApplicationResponse>> apply(
             @LoginUserId Long userId, @PathVariable Long gatheringId,
             @Valid @RequestBody(required = false) ApplyRequest request);
+
+    @Operation(summary = "참여 신청 취소", description = "대기 중인 내 신청을 취소한다. 매너온도 영향은 없고, 모집중이면 다시 신청할 수 있다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "취소 성공"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임 · AP001 대기·확정 중인 신청 없음"),
+            @ApiResponse(responseCode = "409", description = "AP005 이미 확정됨(나가기를 사용)")
+    })
+    @DeleteMapping("/applications/me")
+    ResponseEntity<SuccessResponse<Void>> cancelMine(@LoginUserId Long userId, @PathVariable Long gatheringId);
 }

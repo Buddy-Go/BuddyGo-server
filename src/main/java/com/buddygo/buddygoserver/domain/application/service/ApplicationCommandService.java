@@ -62,6 +62,17 @@ public class ApplicationCommandService {
         return ApplicationResponse.from(application);
     }
 
+    /** 대기 중인 내 신청을 취소한다. 확정된 뒤에는 취소가 아니라 나가기다. */
+    public void cancelMine(Long userId, Long gatheringId) {
+        lockGathering(gatheringId);
+        Participation application = participationRepository.findActive(gatheringId, userId)
+                .orElseThrow(() -> new CustomException(ApplicationErrorType.NOT_FOUND));
+        if (!application.isPending()) {
+            throw new CustomException(ApplicationErrorType.NOT_PENDING);
+        }
+        application.cancel();
+    }
+
     private Gathering lockGathering(Long gatheringId) {
         return gatheringRepository.findActiveByIdForUpdate(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
