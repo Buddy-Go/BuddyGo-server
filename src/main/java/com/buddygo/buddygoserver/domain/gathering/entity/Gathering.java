@@ -6,6 +6,7 @@ import com.buddygo.buddygoserver.domain.sport.Sport;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.global.entity.BaseEntity;
 import jakarta.persistence.*;
+import java.time.Duration;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -72,4 +73,60 @@ public class Gathering extends BaseEntity {
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
+
+    public static Gathering open(User host, Place place, String title, String description, String detailAddress,
+                                 Instant startAt, Duration duration, short capacity, GenderRule genderRule) {
+        return Gathering.builder()
+                .host(host)
+                .place(place)
+                .title(title)
+                .description(description)
+                .detailAddress(detailAddress)
+                .startAt(startAt)
+                .endAt(startAt.plus(duration))
+                .capacity(capacity)
+                .genderRule(genderRule)
+                .build();
+    }
+
+    public boolean isHostedBy(Long userId) {
+        return host.getId().equals(userId);
+    }
+
+    /** 진행중이 되었는지. 상태 전이 스케줄러가 늦어도 시작 시각이 지났으면 시작된 것으로 본다. */
+    public boolean hasStarted(Instant now) {
+        return status == GatheringStatus.IN_PROGRESS || status == GatheringStatus.FINISHED || !now.isBefore(startAt);
+    }
+
+    public boolean isCanceled() {
+        return status == GatheringStatus.CANCELED;
+    }
+
+    public Duration getDuration() {
+        return Duration.between(startAt, endAt);
+    }
+
+    /** 확정 참가자가 있어도 바꿀 수 있는 항목 */
+    public void changeDetails(String title, String description, String detailAddress) {
+        this.title = title;
+        this.description = description;
+        this.detailAddress = detailAddress;
+    }
+
+    /** 확정 참가자(호스트 제외)가 없을 때만 바꿀 수 있는 항목 */
+    public void changeCore(Place place, Instant startAt, Duration duration, short capacity, GenderRule genderRule) {
+        this.place = place;
+        this.startAt = startAt;
+        this.endAt = startAt.plus(duration);
+        this.capacity = capacity;
+        this.genderRule = genderRule;
+    }
+
+    public void cancel() {
+        this.status = GatheringStatus.CANCELED;
+    }
+
+    public void delete(Instant now) {
+        this.deletedAt = now;
+    }
 }
