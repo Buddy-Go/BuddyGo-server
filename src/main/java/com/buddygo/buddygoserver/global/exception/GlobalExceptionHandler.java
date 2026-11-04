@@ -5,6 +5,8 @@ import com.buddygo.buddygoserver.global.response.error.type.BaseErrorType;
 import com.buddygo.buddygoserver.global.response.error.type.GlobalErrorType;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -17,11 +19,22 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /** 유니크 제약 이름 → 에러 타입. 같은 이름을 두 도메인이 등록하면 기동에 실패한다. */
+    private final Map<String, BaseErrorType> uniqueConstraintErrors;
+
+    public GlobalExceptionHandler(List<UniqueConstraintErrors> uniqueConstraintErrors) {
+        this.uniqueConstraintErrors = uniqueConstraintErrors.stream()
+                .flatMap(errors -> errors.byConstraint().entrySet().stream())
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<ErrorResponse> handleCustom(CustomException e) {
@@ -81,10 +94,35 @@ public class GlobalExceptionHandler {
         return build(GlobalErrorType.RESOURCE_NOT_FOUND, ErrorResponse.from(GlobalErrorType.RESOURCE_NOT_FOUND));
     }
 
+    /**
+     * 사전 검사를 동시 요청이 함께 통과해 유니크 제약에 걸린 경우. 등록된 제약만 도메인 에러로 바꾸고,
+     * 등록되지 않은 제약과 FK·NOT NULL·CHECK 위반은 버그로 보고 500 으로 둔다.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        String constraint = violatedUniqueConstraint(e);
+        BaseErrorType error = constraint == null ? null : uniqueConstraintErrors.get(constraint);
+        if (error == null) {
+            return handleUnexpected(e);
+        }
+        log.warn("[Unique Violation] {} {}", error.getCode(), constraint);
+        return build(error, ErrorResponse.from(error));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception e) {
         log.error("[Error Occurred]", e);
         return build(GlobalErrorType.INTERNAL_SERVER_ERROR, ErrorResponse.from(GlobalErrorType.INTERNAL_SERVER_ERROR));
+    }
+
+    private static String violatedUniqueConstraint(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof org.hibernate.exception.ConstraintViolationException cve
+                    && cve.getKind() == ConstraintKind.UNIQUE) {
+                return cve.getConstraintName();
+            }
+        }
+        return null;
     }
 
     private ResponseEntity<ErrorResponse> invalidInput(Map<String, String> errors) {
