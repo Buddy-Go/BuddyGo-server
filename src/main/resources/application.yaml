@@ -28,6 +28,10 @@ jwt:
   access-token-ttl: 30m
   refresh-token-ttl: 14d
 
+app:
+  # 서비스 기준 시간대. 저장·응답은 UTC Instant 이고, 날짜·시간대 조건 해석에만 쓴다 (TimeConfig)
+  time-zone: Asia/Seoul
+
 auth:
   login-attempt:
     max-failures: 5
