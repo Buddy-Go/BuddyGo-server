@@ -351,6 +351,89 @@ class GatheringIntegrationTest {
         }
     }
 
+    @Nested
+    class 수정 {
+
+        @Test
+        void 확정_참가자가_없으면_모든_항목을_바꿀_수_있다() throws Exception {
+            record(host, BodyPart.CHEST, 80);
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            participate(id, other, ParticipationStatus.PENDING); // 대기 신청은 확정 참가자가 아니다
+
+            update(host, id, """
+                    {"title": "바뀐 제목", "description": "", "startAt": "2026-11-11T10:00:00Z",
+                     "durationMinutes": 60, "capacity": 2, "genderRule": "MALE_ONLY",
+                     "gym": {"parts": ["CHEST", "BACK"], "showMyRecord": true}}""")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.title").value("바뀐 제목"))
+                    .andExpect(jsonPath("$.data.description").doesNotExist())
+                    .andExpect(jsonPath("$.data.endAt").value("2026-11-11T11:00:00Z"))
+                    .andExpect(jsonPath("$.data.capacity").value(2))
+                    .andExpect(jsonPath("$.data.genderRule").value("MALE_ONLY"))
+                    .andExpect(jsonPath("$.data.gym.parts[*].bodyPart").value(contains("CHEST", "BACK")))
+                    .andExpect(jsonPath("$.data.gym.parts[0].minValue").value(70))
+                    .andExpect(jsonPath("$.data.gym.parts[1].recordShown").value(false));
+        }
+
+        @Test
+        void 진행_시간만_바꾸면_시작은_그대로_두고_종료를_다시_계산한다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            update(host, id, "{\"durationMinutes\": 240}")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.startAt").value("2026-11-10T03:00:00Z"))
+                    .andExpect(jsonPath("$.data.endAt").value("2026-11-10T07:00:00Z"));
+        }
+
+        @Test
+        void 장소를_바꿀_수_있다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            update(host, id, """
+                    {"place": {"kakaoPlaceId": "999", "name": "새 헬스장", "jibunAddress": "서울 마포구 서교동 1",
+                               "regionCode": "1144012000", "latitude": 37.55, "longitude": 126.92}}""")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.place.name").value("새 헬스장"))
+                    .andExpect(jsonPath("$.data.place.regionCode").value("1144012000"));
+        }
+
+        @Test
+        void 확정_참가자가_있으면_제목_설명_상세주소만_바꿀_수_있다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            participate(id, member, ParticipationStatus.CONFIRMED);
+
+            update(host, id, "{\"title\": \"새 제목\", \"detailAddress\": \"4층\"}")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.title").value("새 제목"))
+                    .andExpect(jsonPath("$.data.place.detailAddress").value("4층"));
+            update(host, id, "{\"title\": \"새 제목\", \"capacity\": 2}")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA005"));
+        }
+
+        @Test
+        void 호스트가_아니면_GA002() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            update(other, id, "{\"title\": \"남의 모임\"}")
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("GA002"));
+        }
+
+        @Test
+        void 시작_시각이_지난_모임은_GA008() throws Exception {
+            long id = savedGathering(NOW.minus(Duration.ofMinutes(1))).getId();
+            update(host, id, "{\"title\": \"늦은 수정\"}")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA008"));
+        }
+
+        @Test
+        void 제목을_공백으로_바꾸면_400() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            update(host, id, "{\"title\": \"  \"}")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.title").exists());
+        }
+    }
+
     // ───────── helpers ─────────
 
     /** 시작 = NOW + 3h, 90분, 정원 3, 누구나 */
@@ -379,6 +462,10 @@ class GatheringIntegrationTest {
         return mockMvc.perform(get("/api/gatherings/{id}", id).header(HttpHeaders.AUTHORIZATION, bearer(user)));
     }
 
+    private ResultActions update(User user, long id, String body) throws Exception {
+        return mockMvc.perform(patch("/api/gatherings/{id}", id).header(HttpHeaders.AUTHORIZATION, bearer(user))
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
 
 
 

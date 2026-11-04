@@ -7,6 +7,7 @@ import com.buddygo.buddygoserver.domain.sport.gym.dto.response.GatheringGymCrite
 import com.buddygo.buddygoserver.domain.sport.gym.dto.response.GatheringGymCriteriaResponse.PartResponse;
 import com.buddygo.buddygoserver.domain.sport.gym.entity.GatheringGymPart;
 import com.buddygo.buddygoserver.domain.sport.gym.entity.UserGymRecord;
+import com.buddygo.buddygoserver.domain.sport.gym.enums.ArmLevel;
 import com.buddygo.buddygoserver.domain.sport.gym.enums.BodyPart;
 import com.buddygo.buddygoserver.domain.sport.gym.repository.GatheringGymPartRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.repository.UserGymRecordRepository;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -43,6 +45,29 @@ public class GatheringGymService {
                             record == null ? null : record.getRecordValue(), record == null ? null : record.getArmLevel());
                 })
                 .toList());
+    }
+
+    /**
+     * 부위 기준을 통째로 바꾼다. 같은 키를 지웠다 다시 넣지 않고(Hibernate 는 INSERT 를 DELETE 보다 먼저 내보낸다)
+     * 남는 부위는 고치고, 새 부위는 넣고, 빠진 부위만 지운다.
+     */
+    public void replaceCriteria(Gathering gathering, Collection<BodyPart> parts, boolean showMyRecord) {
+        Map<BodyPart, UserGymRecord> hostRecords = hostRecordsToShow(gathering, showMyRecord);
+        Map<BodyPart, GatheringGymPart> existing = new EnumMap<>(BodyPart.class);
+        gatheringGymPartRepository.findAllByIdGatheringId(gathering.getId()).forEach(p -> existing.put(p.getBodyPart(), p));
+
+        for (BodyPart part : parts) {
+            UserGymRecord record = hostRecords.get(part);
+            BigDecimal recordValue = record == null ? null : record.getRecordValue();
+            ArmLevel armLevel = record == null ? null : record.getArmLevel();
+            GatheringGymPart current = existing.remove(part);
+            if (current == null) {
+                gatheringGymPartRepository.save(GatheringGymPart.of(gathering, part, recordValue, armLevel));
+            } else {
+                current.update(recordValue, armLevel);
+            }
+        }
+        gatheringGymPartRepository.deleteAll(existing.values());
     }
 
     /**

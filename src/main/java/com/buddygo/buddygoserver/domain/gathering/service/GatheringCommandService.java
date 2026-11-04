@@ -4,6 +4,7 @@ import com.buddygo.buddygoserver.domain.application.entity.Participation;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.gathering.config.GatheringProperties;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
+import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.PlaceRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
@@ -61,6 +62,59 @@ public class GatheringCommandService {
         gatheringGymService.saveCriteria(gathering, request.gym().parts(), request.gym().showMyRecord());
 
         return gatheringQueryService.getDetail(gathering.getId(), hostId);
+    }
+
+    /**
+     * 수정. 확정 참가자(호스트 제외)가 0명이면 모든 항목, 1명 이상이면 제목·설명·상세주소만 바꿀 수 있다.
+     * 잠긴 항목을 보내면 무시하지 않고 거절한다.
+     */
+    public GatheringDetailResponse update(Long userId, Long gatheringId, GatheringUpdateRequest request) {
+        Instant now = Instant.now(clock);
+        Gathering gathering = lockForHostAction(gatheringId, userId, now);
+        if (request.changesCore() && participationRepository.countConfirmedExcludingHost(gatheringId) > 0) {
+            throw new CustomException(GatheringErrorType.EDIT_RESTRICTED);
+        }
+
+        gathering.changeDetails(
+                request.title() != null ? request.title().strip() : gathering.getTitle(),
+                request.description() != null ? blankToNull(request.description()) : gathering.getDescription(),
+                request.detailAddress() != null ? blankToNull(request.detailAddress()) : gathering.getDetailAddress());
+
+        if (request.changesCore()) {
+            if (request.startAt() != null) {
+                validateStartAt(request.startAt(), now);
+            }
+            GenderRule genderRule = request.genderRule() != null ? request.genderRule() : gathering.getGenderRule();
+            validateGenderRule(genderRule, gathering.getHost());
+            gathering.changeCore(
+                    request.place() != null ? findOrCreatePlace(request.place(), now) : gathering.getPlace(),
+                    request.startAt() != null ? request.startAt() : gathering.getStartAt(),
+                    request.durationMinutes() != null ? toDuration(request.durationMinutes()) : gathering.getDuration(),
+                    request.capacity() != null ? toCapacity(request.capacity()) : gathering.getCapacity(),
+                    genderRule);
+            if (request.gym() != null) {
+                gatheringGymService.replaceCriteria(gathering, request.gym().parts(), request.gym().showMyRecord());
+            }
+        }
+        // TODO 확정 참가자가 없을 때 성별 조건을 바꾸면 조건에 맞지 않게 된 대기 신청 처리 (규칙 미정)
+
+        return gatheringQueryService.getDetail(gatheringId, userId);
+    }
+
+    /** 호스트만, 취소되지 않았고 아직 시작 전인 모임에 할 수 있는 수정·삭제·취소의 공통 검사 */
+    private Gathering lockForHostAction(Long gatheringId, Long userId, Instant now) {
+        Gathering gathering = gatheringRepository.findActiveByIdForUpdate(gatheringId)
+                .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
+        if (!gathering.isHostedBy(userId)) {
+            throw new CustomException(GatheringErrorType.NOT_HOST);
+        }
+        if (gathering.isCanceled()) {
+            throw new CustomException(GatheringErrorType.ALREADY_CANCELED);
+        }
+        if (gathering.hasStarted(now)) {
+            throw new CustomException(GatheringErrorType.ALREADY_STARTED);
+        }
+        return gathering;
     }
 
     /** 시작 시각은 단위(start-time-step)의 정각이고, 데드라인(시작 - deadline-before-start)이 미래여야 한다. */

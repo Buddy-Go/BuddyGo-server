@@ -2,6 +2,7 @@ package com.buddygo.buddygoserver.domain.gathering.controller;
 
 import com.buddygo.buddygoserver.domain.gathering.api.GatheringApi;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
+import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringCommandService;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringQueryService;
@@ -27,5 +28,11 @@ public class GatheringController implements GatheringApi {
     @Override
     public ResponseEntity<SuccessResponse<GatheringDetailResponse>> getDetail(Long userId, Long gatheringId) {
         return ResponseEntity.ok(SuccessResponse.from(gatheringQueryService.getDetail(gatheringId, userId)));
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<GatheringDetailResponse>> update(
+            Long userId, Long gatheringId, GatheringUpdateRequest request) {
+        return ResponseEntity.ok(SuccessResponse.from(gatheringCommandService.update(userId, gatheringId, request)));
     }
 }
