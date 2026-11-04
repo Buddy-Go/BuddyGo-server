@@ -1,6 +1,7 @@
 package com.buddygo.buddygoserver.domain.gathering.service;
 
 import com.buddygo.buddygoserver.domain.application.entity.Participation;
+import com.buddygo.buddygoserver.domain.application.enums.RejectReason;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.gathering.config.GatheringProperties;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
@@ -8,9 +9,11 @@ import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateReq
 import com.buddygo.buddygoserver.domain.gathering.dto.request.PlaceRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
+import com.buddygo.buddygoserver.domain.gathering.entity.GatheringCancellation;
 import com.buddygo.buddygoserver.domain.gathering.entity.Place;
 import com.buddygo.buddygoserver.domain.gathering.enums.GenderRule;
 import com.buddygo.buddygoserver.domain.gathering.exception.GatheringErrorType;
+import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.service.GatheringGymService;
@@ -38,6 +41,7 @@ public class GatheringCommandService {
 
     private final GatheringRepository gatheringRepository;
     private final PlaceRepository placeRepository;
+    private final GatheringCancellationRepository gatheringCancellationRepository;
     private final ParticipationRepository participationRepository;
     private final UserRepository userRepository;
     private final GatheringGymService gatheringGymService;
@@ -99,6 +103,31 @@ public class GatheringCommandService {
         // TODO 확정 참가자가 없을 때 성별 조건을 바꾸면 조건에 맞지 않게 된 대기 신청 처리 (규칙 미정)
 
         return gatheringQueryService.getDetail(gatheringId, userId);
+    }
+
+    /** 삭제. 확정 참가자(호스트 제외)가 0명일 때만. 대기 신청은 자동 거절되고 매너온도 영향은 없다. */
+    public void delete(Long userId, Long gatheringId) {
+        Instant now = Instant.now(clock);
+        Gathering gathering = lockForHostAction(gatheringId, userId, now);
+        if (participationRepository.countConfirmedExcludingHost(gatheringId) > 0) {
+            throw new CustomException(GatheringErrorType.HAS_CONFIRMED_PARTICIPANTS);
+        }
+        participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_DELETED, now);
+        gathering.delete(now);
+        // TODO 자동 거절 알림 (알림 도메인 구현 후)
+    }
+
+    /** 호스트 취소(방폭). 확정 참가자(호스트 제외)가 1명 이상일 때만. 대기 신청은 자동 거절된다. */
+    public void cancel(Long userId, Long gatheringId, String reason) {
+        Instant now = Instant.now(clock);
+        Gathering gathering = lockForHostAction(gatheringId, userId, now);
+        if (participationRepository.countConfirmedExcludingHost(gatheringId) == 0) {
+            throw new CustomException(GatheringErrorType.NO_CONFIRMED_PARTICIPANTS);
+        }
+        participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_CANCELED, now);
+        gathering.cancel();
+        gatheringCancellationRepository.save(GatheringCancellation.byHost(gathering, reason.strip(), now));
+        // TODO 호스트 매너온도 하락(마감 후 취소가 더 크게, 점수 미정) · 확정 참가자에게 사유 알림 · 자동 거절 알림
     }
 
     /** 호스트만, 취소되지 않았고 아직 시작 전인 모임에 할 수 있는 수정·삭제·취소의 공통 검사 */

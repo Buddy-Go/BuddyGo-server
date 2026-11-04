@@ -434,6 +434,91 @@ class GatheringIntegrationTest {
         }
     }
 
+    @Nested
+    class 삭제 {
+
+        @Test
+        void 확정_참가자가_없으면_삭제되고_대기_신청은_자동_거절된다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Participation pending = participate(id, other, ParticipationStatus.PENDING);
+
+            deleteGathering(host, id).andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(gatheringRepository.findById(id).orElseThrow().getDeletedAt()).isEqualTo(NOW);
+            Participation rejected = participationRepository.findById(pending.getId()).orElseThrow();
+            assertThat(rejected.getStatus()).isEqualTo(ParticipationStatus.REJECTED);
+            assertThat(rejected.getRejectReason()).isEqualTo(RejectReason.MEETING_DELETED);
+            detail(host, id).andExpect(jsonPath("$.code").value("GA001"));
+            deleteGathering(host, id).andExpect(jsonPath("$.code").value("GA001"));
+        }
+
+        @Test
+        void 확정_참가자가_있으면_GA004() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            participate(id, member, ParticipationStatus.CONFIRMED);
+
+            deleteGathering(host, id)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA004"));
+        }
+    }
+
+    @Nested
+    class 취소 {
+
+        @Test
+        void 확정_참가자가_있으면_취소되고_사유는_참가자에게만_보인다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            participate(id, member, ParticipationStatus.CONFIRMED);
+            Participation pending = participate(id, other, ParticipationStatus.PENDING);
+
+            cancel(host, id, "{\"reason\": \"출장이 잡혔어요\"}").andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(gatheringRepository.findById(id).orElseThrow().getStatus()).isEqualTo(GatheringStatus.CANCELED);
+            assertThat(gatheringCancellationRepository.findById(id).orElseThrow().getType())
+                    .isEqualTo(CancellationType.HOST);
+            assertThat(participationRepository.findById(pending.getId()).orElseThrow().getRejectReason())
+                    .isEqualTo(RejectReason.MEETING_CANCELED);
+
+            detail(member, id)
+                    .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                    .andExpect(jsonPath("$.data.cancellation.reason").value("출장이 잡혔어요"))
+                    .andExpect(jsonPath("$.data.cancellation.canceledAt").value("2026-11-10T00:00:00Z"));
+            detail(other, id)
+                    .andExpect(jsonPath("$.data.cancellation.type").value("HOST"))
+                    .andExpect(jsonPath("$.data.cancellation.reason").doesNotExist());
+        }
+
+        @Test
+        void 확정_참가자가_없으면_GA007() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            cancel(host, id, "{\"reason\": \"사정이 생겼어요\"}")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA007"));
+        }
+
+        @Test
+        void 이미_취소된_모임은_GA009() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            participate(id, member, ParticipationStatus.CONFIRMED);
+            cancel(host, id, "{\"reason\": \"사정이 생겼어요\"}").andExpect(status().isOk());
+
+            cancel(host, id, "{\"reason\": \"또 취소\"}")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA009"));
+            update(host, id, "{\"title\": \"취소 후 수정\"}").andExpect(jsonPath("$.code").value("GA009"));
+        }
+
+        @Test
+        void 사유가_없거나_100자를_넘으면_400() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            cancel(host, id, "{\"reason\": \" \"}").andExpect(status().isBadRequest());
+            cancel(host, id, "{\"reason\": \"" + "가".repeat(101) + "\"}").andExpect(status().isBadRequest());
+        }
+    }
+
     // ───────── helpers ─────────
 
     /** 시작 = NOW + 3h, 90분, 정원 3, 누구나 */
@@ -467,7 +552,14 @@ class GatheringIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
+    private ResultActions deleteGathering(User user, long id) throws Exception {
+        return mockMvc.perform(delete("/api/gatherings/{id}", id).header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
 
+    private ResultActions cancel(User user, long id, String body) throws Exception {
+        return mockMvc.perform(post("/api/gatherings/{id}/cancel", id).header(HttpHeaders.AUTHORIZATION, bearer(user))
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
 
     private String bearer(User user) {
         return "Bearer " + jwtTokenProvider.issueAccessToken(user.getId()).value();

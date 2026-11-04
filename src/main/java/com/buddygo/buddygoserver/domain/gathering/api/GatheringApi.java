@@ -1,5 +1,6 @@
 package com.buddygo.buddygoserver.domain.gathering.api;
 
+import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCancelRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -70,4 +72,27 @@ public interface GatheringApi {
     @PatchMapping("/{gatheringId}")
     ResponseEntity<SuccessResponse<GatheringDetailResponse>> update(
             @LoginUserId Long userId, @PathVariable Long gatheringId, @Valid @RequestBody GatheringUpdateRequest request);
+
+    @Operation(summary = "모임 삭제", description = "확정 참가자(호스트 제외)가 0명일 때만. 대기 신청은 자동 거절된다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "삭제 성공"),
+            @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임"),
+            @ApiResponse(responseCode = "409", description = "GA004 확정 참가자 있음(취소를 사용) · GA008 이미 시작 · GA009 이미 취소")
+    })
+    @DeleteMapping("/{gatheringId}")
+    ResponseEntity<SuccessResponse<Void>> delete(@LoginUserId Long userId, @PathVariable Long gatheringId);
+
+    @Operation(summary = "모임 취소(방폭)",
+            description = "확정 참가자(호스트 제외)가 1명 이상일 때만. 사유(100자)는 확정 참가자에게 전달되고 대기 신청은 자동 거절된다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "취소 성공"),
+            @ApiResponse(responseCode = "400", description = "G002 사유 누락·100자 초과"),
+            @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임"),
+            @ApiResponse(responseCode = "409", description = "GA007 확정 참가자 없음(삭제를 사용) · GA008 이미 시작 · GA009 이미 취소")
+    })
+    @PostMapping("/{gatheringId}/cancel")
+    ResponseEntity<SuccessResponse<Void>> cancel(
+            @LoginUserId Long userId, @PathVariable Long gatheringId, @Valid @RequestBody GatheringCancelRequest request);
 }
