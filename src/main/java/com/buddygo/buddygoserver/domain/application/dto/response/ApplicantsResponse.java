@@ -36,7 +36,7 @@ public record ApplicantsResponse(
             @Schema(example = "44.1") BigDecimal mannerTemperature,
             @Schema(example = "근처 살아서 자주 갈 수 있어요.") String message,
             @Schema(example = "2026-11-09T12:00:00Z") Instant appliedAt,
-            @Schema(description = "모임 부위의 신청자 헬스 기록. 기록이 없는 부위는 recorded=false('미설정')")
+            @Schema(description = "신청 시점의 헬스 수준(모임 부위). 입력하지 않은 부위는 recorded=false('미설정')")
             List<GymRecordResponse> gymRecords
     ) {
 

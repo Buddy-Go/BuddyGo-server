@@ -48,8 +48,11 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -126,6 +129,72 @@ class ApplicationIntegrationTest {
                     .andExpect(status().isCreated());
             assertThat(participationRepository.findActive(gathering.getId(), alice.getId()).orElseThrow().getMessage())
                     .isNull();
+        }
+
+        @Test
+        void 헬스_수준을_보내면_신청에_저장되고_보낸_부위는_프로필에도_반영된다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            gymParts(gathering, BodyPart.CHEST, BodyPart.BACK, BodyPart.ARM);
+            profile(alice, BodyPart.CHEST, 60);
+            profile(alice, BodyPart.LEGS, 100);
+
+            apply(alice, gathering, """
+                    {"gymRecords": [{"bodyPart": "CHEST", "recordValue": 80},
+                                    {"bodyPart": "ARM", "armLevel": "INTERMEDIATE"}]}""")
+                    .andExpect(status().isCreated());
+            flushAndClear();
+
+            applicants(host, gathering)
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[*].bodyPart")
+                            .value(contains("CHEST", "BACK", "ARM")))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[0].recordValue").value(80))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[1].recorded").value(false))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[2].armLevel").value("INTERMEDIATE"));
+            assertThat(profileOf(alice)).containsEntry(BodyPart.CHEST, "80")
+                    .containsEntry(BodyPart.ARM, "INTERMEDIATE")
+                    .containsEntry(BodyPart.LEGS, "100"); // 보내지 않은 프로필 부위는 그대로
+        }
+
+        @Test
+        void 헬스_수준을_생략하면_지금_프로필의_모임_부위를_쓰고_프로필은_그대로다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            gymParts(gathering, BodyPart.CHEST);
+            profile(alice, BodyPart.CHEST, 60);
+            profile(alice, BodyPart.LEGS, 100);
+
+            apply(alice, gathering, "{}").andExpect(status().isCreated());
+            flushAndClear();
+
+            applicants(host, gathering)
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords.length()").value(1))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[0].recordValue").value(60));
+            assertThat(profileOf(alice)).hasSize(2).containsEntry(BodyPart.CHEST, "60");
+        }
+
+        @Test
+        void 모임_부위가_아닌_기록을_보내면_AP009() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            gymParts(gathering, BodyPart.CHEST);
+
+            apply(alice, gathering, """
+                    {"gymRecords": [{"bodyPart": "LEGS", "recordValue": 100}]}""")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("AP009"));
+        }
+
+        @Test
+        void 부위에_맞지_않는_기록이나_같은_부위_중복은_400() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            gymParts(gathering, BodyPart.CHEST, BodyPart.ARM);
+
+            apply(alice, gathering, """
+                    {"gymRecords": [{"bodyPart": "ARM", "recordValue": 3}]}""")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors['gymRecords[0].recordValue']").exists());
+            apply(alice, gathering, """
+                    {"gymRecords": [{"bodyPart": "CHEST", "recordValue": 80}, {"bodyPart": "CHEST", "recordValue": 90}]}""")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.gymRecords").exists());
         }
 
         @Test
@@ -239,6 +308,18 @@ class ApplicationIntegrationTest {
                     .andExpect(jsonPath("$.data.pending[0].gymRecords[1].recorded").value(false))
                     .andExpect(jsonPath("$.data.pending[1].nickname").value("carol"))
                     .andExpect(jsonPath("$.data.pending[1].gymRecords[0].recorded").value(false));
+        }
+
+        @Test
+        void 신청_후_프로필을_바꿔도_신청_시점_값을_보여준다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            gymParts(gathering, BodyPart.CHEST);
+            apply(alice, gathering, """
+                    {"gymRecords": [{"bodyPart": "CHEST", "recordValue": 80}]}""").andExpect(status().isCreated());
+            userGymRecordRepository.findAllByIdUserId(alice.getId()).getFirst().update(new BigDecimal("120"), null);
+            flushAndClear();
+
+            applicants(host, gathering).andExpect(jsonPath("$.data.pending[0].gymRecords[0].recordValue").value(80));
         }
 
         @Test
@@ -521,6 +602,17 @@ class ApplicationIntegrationTest {
                 .setParameter("startAt", startAt).setParameter("endAt", startAt.plus(Duration.ofHours(1)))
                 .setParameter("id", gathering.getId()).executeUpdate();
         entityManager.clear();
+    }
+
+    private void profile(User user, BodyPart part, int value) {
+        userGymRecordRepository.save(UserGymRecord.of(user, part, BigDecimal.valueOf(value), null));
+    }
+
+    /** 부위 → 값(kg·횟수 또는 숙련도) */
+    private Map<BodyPart, String> profileOf(User user) {
+        return userGymRecordRepository.findAllByIdUserId(user.getId()).stream().collect(Collectors.toMap(
+                UserGymRecord::getBodyPart,
+                r -> r.getArmLevel() != null ? r.getArmLevel().name() : r.getRecordValue().stripTrailingZeros().toPlainString()));
     }
 
     private String bearer(User user) {

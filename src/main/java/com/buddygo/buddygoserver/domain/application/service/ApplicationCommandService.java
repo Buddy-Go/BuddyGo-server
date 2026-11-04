@@ -13,6 +13,8 @@ import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.exception.GatheringErrorType;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
+import com.buddygo.buddygoserver.domain.sport.gym.dto.request.GymRecordRequest;
+import com.buddygo.buddygoserver.domain.sport.gym.service.ApplicationGymService;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.exception.UserErrorType;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * 신청·수락·거절·나가기. 모든 변경은 모임 행을 먼저 잠그고(findActiveByIdForUpdate) 참여 상태를 읽는다.
@@ -37,14 +40,16 @@ public class ApplicationCommandService {
     private final GatheringCancellationRepository gatheringCancellationRepository;
     private final ParticipationRepository participationRepository;
     private final UserRepository userRepository;
+    private final ApplicationGymService applicationGymService;
     private final GatheringProperties gatheringProperties;
     private final Clock clock;
 
     /**
      * 참여 신청. 막는 경우는 모집중이 아님·본인이 호스트·성별 조건 불일치·이미 대기/확정뿐이다.
      * 기준이 맞지 않거나 다른 모임과 시간이 겹쳐도 막지 않고, 취소·거절·나간 뒤에도 다시 신청할 수 있다.
+     * 헬스 수준은 신청에 스냅샷한다(ApplicationGymService.snapshot).
      */
-    public ApplicationResponse apply(Long userId, Long gatheringId, String message) {
+    public ApplicationResponse apply(Long userId, Long gatheringId, String message, List<GymRecordRequest> gymRecords) {
         Instant now = Instant.now(clock);
         Gathering gathering = lockGathering(gatheringId);
         if (!gathering.isRecruiting(now, gatheringProperties.deadlineOf(gathering.getStartAt()))) {
@@ -64,6 +69,7 @@ public class ApplicationCommandService {
         // 사전 검사를 지나도 uk_participations_active 에 걸리면 AP002 로 바뀐다
         Participation application = participationRepository.saveAndFlush(
                 Participation.apply(gathering, user, blankToNull(message), now));
+        applicationGymService.snapshot(application, gymRecords);
         // TODO 호스트에게 신청 알림 · 메이트 알림 (알림 도메인 구현 후)
         return ApplicationResponse.from(application);
     }

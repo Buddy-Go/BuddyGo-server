@@ -31,7 +31,7 @@ public record GymProfileResponse(List<GymRecordResponse> records) {
             @Schema(description = "팔만 사용", example = "null") ArmLevel armLevel
     ) {
 
-        public static GymRecordResponse of(BodyPart part, UserGymRecord record) {
+        static GymRecordResponse of(BodyPart part, UserGymRecord record) {
             if (record == null) {
                 return new GymRecordResponse(part, false, null, null);
             }

@@ -5,7 +5,6 @@ import com.buddygo.buddygoserver.domain.sport.gym.criteria.GymCriteria;
 import com.buddygo.buddygoserver.domain.sport.gym.dto.response.GatheringGymCriteriaResponse;
 import com.buddygo.buddygoserver.domain.sport.gym.dto.response.GatheringGymCriteriaResponse.MatchResponse;
 import com.buddygo.buddygoserver.domain.sport.gym.dto.response.GatheringGymCriteriaResponse.PartResponse;
-import com.buddygo.buddygoserver.domain.sport.gym.dto.response.GymProfileResponse.GymRecordResponse;
 import com.buddygo.buddygoserver.domain.sport.gym.entity.GatheringGymPart;
 import com.buddygo.buddygoserver.domain.sport.gym.entity.UserGymRecord;
 import com.buddygo.buddygoserver.domain.sport.gym.enums.ArmLevel;
@@ -20,7 +19,6 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -95,30 +93,6 @@ public class GatheringGymService {
                 : null;
         return PartResponse.of(bodyPart, range, part.getArmLevel(), mine,
                 compare ? gymCriteria.compare(part, mine) : null);
-    }
-
-    /**
-     * 신청자들의 헬스 기록 중 모임 부위만 골라 사용자별로 돌려준다. 기록이 없는 부위는 recorded=false('미설정')다.
-     * 신청자 수만큼 조회하지 않도록 한 번에 읽는다.
-     */
-    @Transactional(readOnly = true)
-    public Map<Long, List<GymRecordResponse>> recordsForCriteria(Long gatheringId, Collection<Long> userIds) {
-        List<BodyPart> parts = gatheringGymPartRepository.findAllByIdGatheringId(gatheringId).stream()
-                .map(GatheringGymPart::getBodyPart)
-                .sorted()
-                .toList();
-        Map<Long, Map<BodyPart, UserGymRecord>> byUser = new HashMap<>();
-        if (!userIds.isEmpty()) {
-            userGymRecordRepository.findAllByIdUserIdIn(userIds).forEach(r -> byUser
-                    .computeIfAbsent(r.getId().getUserId(), id -> new EnumMap<>(BodyPart.class))
-                    .put(r.getBodyPart(), r));
-        }
-        Map<Long, List<GymRecordResponse>> result = new HashMap<>();
-        for (Long userId : userIds) {
-            Map<BodyPart, UserGymRecord> records = byUser.getOrDefault(userId, Map.of());
-            result.put(userId, parts.stream().map(part -> GymRecordResponse.of(part, records.get(part))).toList());
-        }
-        return result;
     }
 
     private Map<BodyPart, UserGymRecord> hostRecordsToShow(Gathering gathering, boolean showMyRecord) {

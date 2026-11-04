@@ -6,11 +6,14 @@ import com.buddygo.buddygoserver.domain.application.dto.response.ApplicantsRespo
 import com.buddygo.buddygoserver.domain.application.dto.response.ApplicationResponse;
 import com.buddygo.buddygoserver.domain.application.service.ApplicationCommandService;
 import com.buddygo.buddygoserver.domain.application.service.ApplicationQueryService;
+import com.buddygo.buddygoserver.domain.sport.gym.dto.request.GymRecordRequest;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -22,8 +25,9 @@ public class ApplicationController implements ApplicationApi {
     @Override
     public ResponseEntity<SuccessResponse<ApplicationResponse>> apply(Long userId, Long gatheringId, ApplyRequest request) {
         String message = request == null ? null : request.message();
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(SuccessResponse.created(applicationCommandService.apply(userId, gatheringId, message)));
+        List<GymRecordRequest> gymRecords = request == null ? null : request.gymRecords();
+        return ResponseEntity.status(HttpStatus.CREATED).body(SuccessResponse.created(
+                applicationCommandService.apply(userId, gatheringId, message, gymRecords)));
     }
 
     @Override

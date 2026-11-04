@@ -25,11 +25,12 @@ public interface ApplicationApi {
 
     @Operation(summary = "참여 신청",
             description = """
-                    모집중이고 데드라인 전인 모임에 신청한다. 한마디는 선택(200자)이고 본문 없이 보내도 된다.
+                    모집중이고 데드라인 전인 모임에 신청한다. 한마디(200자)와 헬스 수준은 선택이고 본문 없이 보내도 된다.
+                    헬스 수준은 신청에 저장돼 호스트에게 보이고, 보낸 부위는 내 프로필에도 반영된다. 생략하면 지금 프로필 기록을 쓴다.
                     기준이 맞지 않거나 다른 모임과 시간이 겹쳐도 막지 않는다. 취소·거절·나간 뒤에도 다시 신청할 수 있다.""")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "신청 성공(PENDING)"),
-            @ApiResponse(responseCode = "400", description = "G002 한마디 200자 초과"),
+            @ApiResponse(responseCode = "400", description = "G002 한마디 200자 초과·부위에 맞지 않는 기록·같은 부위 중복 · AP009 모임 부위가 아님"),
             @ApiResponse(responseCode = "403", description = "AP004 성별 조건 불일치"),
             @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임"),
             @ApiResponse(responseCode = "409", description = "GA003 모집중이 아님(데드라인 지남 포함) · AP002 이미 대기·확정 · AP006 본인이 호스트")
@@ -51,7 +52,7 @@ public interface ApplicationApi {
     @Operation(summary = "참가자 관리(신청자 목록)",
             description = """
                     호스트만. 확정 명단(호스트 포함)과 대기 중인 신청을 함께 준다.
-                    신청자마다 닉네임·매너온도·한마디와 모임 부위의 헬스 기록(없으면 recorded=false, '미설정')을 담는다.""")
+                    신청자마다 닉네임·매너온도·한마디와 신청 시점의 헬스 수준(모임 부위, 없으면 recorded=false '미설정')을 담는다.""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
