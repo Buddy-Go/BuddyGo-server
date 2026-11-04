@@ -23,6 +23,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -37,6 +38,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -57,7 +60,7 @@ class AuthIntegrationTest {
     private static final String PASSWORD = "password123";
 
     @Autowired MockMvc mockMvc;
-    @Autowired UserRepository userRepository;
+    @MockitoSpyBean UserRepository userRepository;
     @Autowired StringRedisTemplate redisTemplate;
     @Autowired JwtEncoder jwtEncoder;
     @Autowired JwtProperties jwtProperties;
@@ -101,6 +104,30 @@ class AuthIntegrationTest {
         @Test
         void 닉네임이_중복이면_409() throws Exception {
             signup(EMAIL, "헬스버디").andExpect(status().isCreated());
+            signup("other@example.com", "헬스버디")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("U003"));
+        }
+
+        /*
+         * 동시 가입: 두 요청이 사전 중복 확인을 함께 통과한 상황을 exists 조회를 false 로 고정해 재현한다.
+         * 실패한 INSERT 뒤에는 트랜잭션이 망가지므로 응답만 확인하고 DB 는 다시 조회하지 않는다.
+         */
+        @Test
+        void 동시_가입으로_이메일_유니크_제약에_걸리면_409_U002() throws Exception {
+            signup(EMAIL, "헬스버디").andExpect(status().isCreated());
+            doReturn(false).when(userRepository).existsByEmail(anyString());
+
+            signup(EMAIL, "다른닉네임")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("U002"));
+        }
+
+        @Test
+        void 동시_가입으로_닉네임_유니크_제약에_걸리면_409_U003() throws Exception {
+            signup(EMAIL, "헬스버디").andExpect(status().isCreated());
+            doReturn(false).when(userRepository).existsByNickname(anyString());
+
             signup("other@example.com", "헬스버디")
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("U003"));

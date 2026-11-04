@@ -15,7 +15,6 @@ import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider;
 import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider.IssuedToken;
 import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider.RefreshTokenClaims;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,13 +55,10 @@ public class AuthCommandService {
 
         User user = User.signUpWithEmail(email, passwordEncoder.encode(request.password()),
                 request.name().strip(), nickname, request.gender());
-        try {
-            userRepository.saveAndFlush(user);
-        } catch (DataIntegrityViolationException e) {
-            // 중복 확인과 저장 사이에 같은 값으로 가입한 경우. 유니크 제약이 최종 방어선이다.
-            validateDuplicate(email, nickname);
-            throw e;
-        }
+        // 중복 확인과 저장 사이에 같은 값으로 가입하면 유니크 제약에 걸리고,
+        // GlobalExceptionHandler 가 제약 이름으로 U002/U003 을 돌려준다.
+        // 실패한 INSERT 는 트랜잭션을 망가뜨리므로 여기서 잡아 다시 조회하지 않는다.
+        userRepository.saveAndFlush(user);
         return startSession(user.getId());
     }
 
