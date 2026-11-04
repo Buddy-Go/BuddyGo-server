@@ -1,6 +1,7 @@
 package com.buddygo.buddygoserver.domain.application.api;
 
 import com.buddygo.buddygoserver.domain.application.dto.request.ApplyRequest;
+import com.buddygo.buddygoserver.domain.application.dto.response.ApplicantsResponse;
 import com.buddygo.buddygoserver.domain.application.dto.response.ApplicationResponse;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import com.buddygo.buddygoserver.global.security.LoginUserId;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,4 +47,17 @@ public interface ApplicationApi {
     })
     @DeleteMapping("/applications/me")
     ResponseEntity<SuccessResponse<Void>> cancelMine(@LoginUserId Long userId, @PathVariable Long gatheringId);
+
+    @Operation(summary = "참가자 관리(신청자 목록)",
+            description = """
+                    호스트만. 확정 명단(호스트 포함)과 대기 중인 신청을 함께 준다.
+                    신청자마다 닉네임·매너온도·한마디와 모임 부위의 헬스 기록(없으면 recorded=false, '미설정')을 담는다.""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임")
+    })
+    @GetMapping("/applications")
+    ResponseEntity<SuccessResponse<ApplicantsResponse>> getApplicants(
+            @LoginUserId Long userId, @PathVariable Long gatheringId);
 }

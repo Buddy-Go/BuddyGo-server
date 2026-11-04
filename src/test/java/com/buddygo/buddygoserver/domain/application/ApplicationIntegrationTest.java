@@ -8,6 +8,11 @@ import com.buddygo.buddygoserver.domain.gathering.entity.Place;
 import com.buddygo.buddygoserver.domain.gathering.enums.GenderRule;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
+import com.buddygo.buddygoserver.domain.sport.gym.entity.GatheringGymPart;
+import com.buddygo.buddygoserver.domain.sport.gym.entity.UserGymRecord;
+import com.buddygo.buddygoserver.domain.sport.gym.enums.BodyPart;
+import com.buddygo.buddygoserver.domain.sport.gym.repository.GatheringGymPartRepository;
+import com.buddygo.buddygoserver.domain.sport.gym.repository.UserGymRecordRepository;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
@@ -32,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -39,6 +45,7 @@ import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,6 +76,8 @@ class ApplicationIntegrationTest {
     @Autowired GatheringRepository gatheringRepository;
     @Autowired PlaceRepository placeRepository;
     @Autowired ParticipationRepository participationRepository;
+    @Autowired GatheringGymPartRepository gatheringGymPartRepository;
+    @Autowired UserGymRecordRepository userGymRecordRepository;
     @Autowired JwtTokenProvider jwtTokenProvider;
     @Autowired EntityManager entityManager;
 
@@ -194,6 +203,45 @@ class ApplicationIntegrationTest {
         }
     }
 
+    @Nested
+    class 참가자_관리 {
+
+        @Test
+        void 호스트는_확정_명단과_대기_신청을_기록과_함께_본다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            gymParts(gathering, BodyPart.CHEST, BodyPart.ARM);
+            confirmed(gathering, alice);
+            userGymRecordRepository.save(UserGymRecord.of(bob, BodyPart.CHEST, new BigDecimal("80"), null));
+            userGymRecordRepository.save(UserGymRecord.of(bob, BodyPart.LEGS, new BigDecimal("100"), null));
+            apply(bob, gathering, "{\"message\": \"첫 번째\"}").andExpect(status().isCreated());
+            apply(carol, gathering, "{}").andExpect(status().isCreated());
+
+            applicants(host, gathering)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.confirmed.length()").value(2))
+                    .andExpect(jsonPath("$.data.confirmed[0].host").value(true))
+                    .andExpect(jsonPath("$.data.confirmed[1].userId").value(alice.getId()))
+                    .andExpect(jsonPath("$.data.pending[0].nickname").value("bob"))
+                    .andExpect(jsonPath("$.data.pending[0].message").value("첫 번째"))
+                    .andExpect(jsonPath("$.data.pending[0].mannerTemperature").value(36.5))
+                    // 모임 부위(가슴·팔)만, 기록 없는 팔은 미설정
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords.length()").value(2))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[0].bodyPart").value("CHEST"))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[0].recordValue").value(80))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[1].bodyPart").value("ARM"))
+                    .andExpect(jsonPath("$.data.pending[0].gymRecords[1].recorded").value(false))
+                    .andExpect(jsonPath("$.data.pending[1].nickname").value("carol"))
+                    .andExpect(jsonPath("$.data.pending[1].gymRecords[0].recorded").value(false));
+        }
+
+        @Test
+        void 호스트가_아니면_GA002() throws Exception {
+            applicants(alice, gathering(START, 3))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("GA002"));
+        }
+    }
+
     // ───────── helpers ─────────
 
     private User user(String name, Gender gender) {
@@ -230,6 +278,17 @@ class ApplicationIntegrationTest {
         return participationRepository.save(Participation.builder()
                 .gathering(gathering).user(user).status(ParticipationStatus.CONFIRMED)
                 .appliedAt(NOW).decidedAt(NOW).build());
+    }
+
+    private ResultActions applicants(User user, Gathering gathering) throws Exception {
+        return mockMvc.perform(get("/api/gatherings/{id}/applications", gathering.getId())
+                .header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
+
+    private void gymParts(Gathering gathering, BodyPart... parts) {
+        for (BodyPart part : parts) {
+            gatheringGymPartRepository.save(GatheringGymPart.of(gathering, part, null, null));
+        }
     }
 
     private String bearer(User user) {

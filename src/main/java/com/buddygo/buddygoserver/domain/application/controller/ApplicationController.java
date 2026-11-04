@@ -2,8 +2,10 @@ package com.buddygo.buddygoserver.domain.application.controller;
 
 import com.buddygo.buddygoserver.domain.application.api.ApplicationApi;
 import com.buddygo.buddygoserver.domain.application.dto.request.ApplyRequest;
+import com.buddygo.buddygoserver.domain.application.dto.response.ApplicantsResponse;
 import com.buddygo.buddygoserver.domain.application.dto.response.ApplicationResponse;
 import com.buddygo.buddygoserver.domain.application.service.ApplicationCommandService;
+import com.buddygo.buddygoserver.domain.application.service.ApplicationQueryService;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApplicationController implements ApplicationApi {
 
     private final ApplicationCommandService applicationCommandService;
+    private final ApplicationQueryService applicationQueryService;
 
     @Override
     public ResponseEntity<SuccessResponse<ApplicationResponse>> apply(Long userId, Long gatheringId, ApplyRequest request) {
@@ -27,5 +30,10 @@ public class ApplicationController implements ApplicationApi {
     public ResponseEntity<SuccessResponse<Void>> cancelMine(Long userId, Long gatheringId) {
         applicationCommandService.cancelMine(userId, gatheringId);
         return ResponseEntity.ok(SuccessResponse.ok());
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<ApplicantsResponse>> getApplicants(Long userId, Long gatheringId) {
+        return ResponseEntity.ok(SuccessResponse.from(applicationQueryService.getApplicants(userId, gatheringId)));
     }
 }
