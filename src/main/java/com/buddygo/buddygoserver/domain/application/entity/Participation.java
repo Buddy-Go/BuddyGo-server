@@ -99,6 +99,12 @@ public class Participation {
         this.decidedAt = now;
     }
 
+    /** 확정 참가자가 모임에서 나간다. */
+    public void leave(Instant now) {
+        this.status = ParticipationStatus.LEFT;
+        this.leftAt = now;
+    }
+
     public boolean isPending() {
         return status == ParticipationStatus.PENDING;
     }

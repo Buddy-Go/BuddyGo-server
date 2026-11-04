@@ -19,6 +19,7 @@ public enum ApplicationErrorType implements BaseErrorType {
     NOT_PENDING(HttpStatus.CONFLICT, "AP005", "대기 중인 신청이 아닙니다."),
     HOST_CANNOT_APPLY(HttpStatus.CONFLICT, "AP006", "호스트는 자신의 모임에 신청할 수 없습니다."),
     NOT_PARTICIPANT(HttpStatus.FORBIDDEN, "AP007", "모임 참가자가 아닙니다."),
+    HOST_CANNOT_LEAVE(HttpStatus.CONFLICT, "AP008", "호스트는 나갈 수 없습니다. 모임 취소를 이용해 주세요."),
     ;
 
     private final HttpStatus status;

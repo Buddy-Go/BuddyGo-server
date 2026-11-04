@@ -36,6 +36,15 @@ public class GatheringCancellation {
     @Column(name = "canceled_at", nullable = false)
     private Instant canceledAt;
 
+    /** 데드라인 후 마감된 모임에서 확정 참가자가 나가 모임 전체가 취소됨(방폭) */
+    public static GatheringCancellation byMemberLeft(Gathering gathering, Instant canceledAt) {
+        return GatheringCancellation.builder()
+                .gathering(gathering)
+                .type(CancellationType.MEMBER_LEFT)
+                .canceledAt(canceledAt)
+                .build();
+    }
+
     public static GatheringCancellation byHost(Gathering gathering, String reason, Instant canceledAt) {
         return GatheringCancellation.builder()
                 .gathering(gathering)

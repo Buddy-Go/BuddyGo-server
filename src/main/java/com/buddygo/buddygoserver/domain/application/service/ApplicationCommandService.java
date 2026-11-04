@@ -8,7 +8,10 @@ import com.buddygo.buddygoserver.domain.application.exception.ApplicationErrorTy
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.gathering.config.GatheringProperties;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
+import com.buddygo.buddygoserver.domain.gathering.entity.GatheringCancellation;
+import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.exception.GatheringErrorType;
+import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.exception.UserErrorType;
@@ -31,6 +34,7 @@ import java.time.Instant;
 public class ApplicationCommandService {
 
     private final GatheringRepository gatheringRepository;
+    private final GatheringCancellationRepository gatheringCancellationRepository;
     private final ParticipationRepository participationRepository;
     private final UserRepository userRepository;
     private final GatheringProperties gatheringProperties;
@@ -107,6 +111,44 @@ public class ApplicationCommandService {
         application.reject(RejectReason.BY_HOST, Instant.now(clock));
         // TODO 거절 알림
         return ApplicationResponse.from(application);
+    }
+
+    /**
+     * 확정 참가자 나가기. 호스트는 나갈 수 없고(취소를 사용), 진행중이 되면 나가기 대신 노쇼 처리된다.
+     * <ul>
+     *   <li>모집중: 확정 인원만 줄어든다. 매너온도 영향 없음</li>
+     *   <li>마감 · 데드라인 전: 마감이 풀려 다시 모집한다</li>
+     *   <li>마감 · 데드라인 후: 모임 전체가 취소된다(방폭). 남은 사람은 페널티 없음</li>
+     * </ul>
+     */
+    public ApplicationResponse leave(Long userId, Long gatheringId) {
+        Instant now = Instant.now(clock);
+        Gathering gathering = lockGathering(gatheringId);
+        if (gathering.isHostedBy(userId)) {
+            throw new CustomException(ApplicationErrorType.HOST_CANNOT_LEAVE);
+        }
+        if (gathering.isCanceled()) {
+            throw new CustomException(GatheringErrorType.ALREADY_CANCELED);
+        }
+        if (gathering.hasStarted(now)) {
+            throw new CustomException(GatheringErrorType.ALREADY_STARTED);
+        }
+        Participation participation = participationRepository.findActive(gatheringId, userId)
+                .filter(Participation::isConfirmed)
+                .orElseThrow(() -> new CustomException(ApplicationErrorType.NOT_PARTICIPANT));
+
+        participation.leave(now);
+        if (gathering.getStatus() == GatheringStatus.CLOSED) {
+            if (now.isBefore(gatheringProperties.deadlineOf(gathering.getStartAt()))) {
+                gathering.reopen();
+                // TODO 나간 사람 매너온도 하락 · 마감 풀림 알림(호스트 + 남은 확정 참가자)
+            } else {
+                gathering.cancel();
+                gatheringCancellationRepository.save(GatheringCancellation.byMemberLeft(gathering, now));
+                // TODO 나간 사람 매너온도 하락(데드라인 전보다 크게) · 방폭 알림(호스트 + 남은 확정 참가자)
+            }
+        }
+        return ApplicationResponse.from(participation);
     }
 
     private Gathering lockGatheringAsHost(Long gatheringId, Long userId) {

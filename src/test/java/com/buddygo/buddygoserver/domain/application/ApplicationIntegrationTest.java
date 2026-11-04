@@ -5,9 +5,12 @@ import com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus;
 import com.buddygo.buddygoserver.domain.application.enums.RejectReason;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
+import com.buddygo.buddygoserver.domain.gathering.entity.GatheringCancellation;
 import com.buddygo.buddygoserver.domain.gathering.entity.Place;
+import com.buddygo.buddygoserver.domain.gathering.enums.CancellationType;
 import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.enums.GenderRule;
+import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.entity.GatheringGymPart;
@@ -77,6 +80,7 @@ class ApplicationIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired UserRepository userRepository;
     @Autowired GatheringRepository gatheringRepository;
+    @Autowired GatheringCancellationRepository gatheringCancellationRepository;
     @Autowired PlaceRepository placeRepository;
     @Autowired ParticipationRepository participationRepository;
     @Autowired GatheringGymPartRepository gatheringGymPartRepository;
@@ -361,6 +365,86 @@ class ApplicationIntegrationTest {
         }
     }
 
+    @Nested
+    class 나가기 {
+
+        @Test
+        void 모집중에_나가면_확정_인원만_줄고_다시_신청할_수_있다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            confirmed(gathering, alice);
+
+            leave(alice, gathering)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("LEFT"))
+                    .andExpect(jsonPath("$.data.gatheringStatus").value("RECRUITING"));
+            flushAndClear();
+            assertThat(participationRepository.countConfirmedExcludingHost(gathering.getId())).isZero();
+
+            apply(alice, gathering, "{}").andExpect(status().isCreated());
+        }
+
+        @Test
+        void 데드라인_전에_마감된_모임에서_나가면_다시_모집한다() throws Exception {
+            Gathering gathering = gathering(START, 2);
+            long applicationId = appliedId(alice, gathering);
+            accept(host, gathering, applicationId).andExpect(jsonPath("$.data.gatheringStatus").value("CLOSED"));
+
+            leave(alice, gathering)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.gatheringStatus").value("RECRUITING"));
+            flushAndClear();
+            assertThat(participationRepository.findById(applicationId).orElseThrow().getLeftAt()).isEqualTo(NOW);
+
+            apply(bob, gathering, "{}").andExpect(status().isCreated());
+        }
+
+        @Test
+        void 데드라인_후에_마감된_모임에서_나가면_모임이_취소된다() throws Exception {
+            Gathering gathering = gathering(START, 2);
+            long applicationId = appliedId(alice, gathering);
+            accept(host, gathering, applicationId).andExpect(status().isOk());
+            setStartAt(gathering, NOW.plus(Duration.ofMinutes(90))); // 데드라인 = NOW
+
+            leave(alice, gathering)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.gatheringStatus").value("CANCELED"));
+            flushAndClear();
+
+            assertThat(gatheringRepository.findById(gathering.getId()).orElseThrow().getStatus())
+                    .isEqualTo(GatheringStatus.CANCELED);
+            GatheringCancellation cancellation = gatheringCancellationRepository.findById(gathering.getId()).orElseThrow();
+            assertThat(cancellation.getType()).isEqualTo(CancellationType.MEMBER_LEFT);
+            assertThat(cancellation.getReason()).isNull();
+        }
+
+        @Test
+        void 호스트는_나갈_수_없다() throws Exception {
+            leave(host, gathering(START, 3))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("AP008"));
+        }
+
+        @Test
+        void 대기_신청자는_나가기가_아니라_신청_취소를_쓴다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            appliedId(alice, gathering);
+
+            leave(alice, gathering)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("AP007"));
+        }
+
+        @Test
+        void 시작된_모임에서는_나갈_수_없다() throws Exception {
+            Gathering gathering = gathering(NOW.minus(Duration.ofMinutes(1)), 3);
+            confirmed(gathering, alice);
+
+            leave(alice, gathering)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA008"));
+        }
+    }
+
     // ───────── helpers ─────────
 
     private User user(String name, Gender gender) {
@@ -424,6 +508,11 @@ class ApplicationIntegrationTest {
     private ResultActions reject(User user, Gathering gathering, long applicationId) throws Exception {
         return mockMvc.perform(post("/api/gatherings/{id}/applications/{applicationId}/reject",
                 gathering.getId(), applicationId).header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
+
+    private ResultActions leave(User user, Gathering gathering) throws Exception {
+        return mockMvc.perform(post("/api/gatherings/{id}/leave", gathering.getId())
+                .header(HttpHeaders.AUTHORIZATION, bearer(user)));
     }
 
     private void setStartAt(Gathering gathering, Instant startAt) {

@@ -132,6 +132,11 @@ public class Gathering extends BaseEntity {
         this.status = GatheringStatus.CLOSED;
     }
 
+    /** 데드라인 전에 마감된 모임에서 확정 참가자가 나가면 다시 모집한다. */
+    public void reopen() {
+        this.status = GatheringStatus.RECRUITING;
+    }
+
     public void cancel() {
         this.status = GatheringStatus.CANCELED;
     }
