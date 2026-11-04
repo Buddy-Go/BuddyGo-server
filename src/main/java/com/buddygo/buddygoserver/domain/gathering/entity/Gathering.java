@@ -98,6 +98,11 @@ public class Gathering extends BaseEntity {
         return status == GatheringStatus.IN_PROGRESS || status == GatheringStatus.FINISHED || !now.isBefore(startAt);
     }
 
+    /** 신청·수락을 받는지. 모집중이어도 데드라인이 지났으면(정원 미달 자동 취소 대상) 받지 않는다. */
+    public boolean isRecruiting(Instant now, Instant deadline) {
+        return status == GatheringStatus.RECRUITING && now.isBefore(deadline);
+    }
+
     public boolean isCanceled() {
         return status == GatheringStatus.CANCELED;
     }

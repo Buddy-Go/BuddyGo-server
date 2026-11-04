@@ -70,4 +70,23 @@ public class Participation {
                 .decidedAt(now)
                 .build();
     }
+
+    /** 참여 신청. 호스트 수락 전까지 대기(PENDING) 상태다. */
+    public static Participation apply(Gathering gathering, User user, String message, Instant now) {
+        return Participation.builder()
+                .gathering(gathering)
+                .user(user)
+                .status(ParticipationStatus.PENDING)
+                .message(message)
+                .appliedAt(now)
+                .build();
+    }
+
+    public boolean isPending() {
+        return status == ParticipationStatus.PENDING;
+    }
+
+    public boolean isConfirmed() {
+        return status == ParticipationStatus.CONFIRMED;
+    }
 }

@@ -1,0 +1,25 @@
+package com.buddygo.buddygoserver.domain.application.controller;
+
+import com.buddygo.buddygoserver.domain.application.api.ApplicationApi;
+import com.buddygo.buddygoserver.domain.application.dto.request.ApplyRequest;
+import com.buddygo.buddygoserver.domain.application.dto.response.ApplicationResponse;
+import com.buddygo.buddygoserver.domain.application.service.ApplicationCommandService;
+import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequiredArgsConstructor
+public class ApplicationController implements ApplicationApi {
+
+    private final ApplicationCommandService applicationCommandService;
+
+    @Override
+    public ResponseEntity<SuccessResponse<ApplicationResponse>> apply(Long userId, Long gatheringId, ApplyRequest request) {
+        String message = request == null ? null : request.message();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(SuccessResponse.created(applicationCommandService.apply(userId, gatheringId, message)));
+    }
+}
