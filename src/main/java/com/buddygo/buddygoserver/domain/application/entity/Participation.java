@@ -70,4 +70,46 @@ public class Participation {
                 .decidedAt(now)
                 .build();
     }
+
+    /** 참여 신청. 호스트 수락 전까지 대기(PENDING) 상태다. */
+    public static Participation apply(Gathering gathering, User user, String message, Instant now) {
+        return Participation.builder()
+                .gathering(gathering)
+                .user(user)
+                .status(ParticipationStatus.PENDING)
+                .message(message)
+                .appliedAt(now)
+                .build();
+    }
+
+    /** 대기 중인 신청을 신청자가 취소한다. 매너온도 영향은 없다. */
+    public void cancel() {
+        this.status = ParticipationStatus.CANCELED;
+    }
+
+    /** 호스트 수락. 즉시 확정 인원에 반영된다. */
+    public void confirm(Instant now) {
+        this.status = ParticipationStatus.CONFIRMED;
+        this.decidedAt = now;
+    }
+
+    public void reject(RejectReason reason, Instant now) {
+        this.status = ParticipationStatus.REJECTED;
+        this.rejectReason = reason;
+        this.decidedAt = now;
+    }
+
+    /** 확정 참가자가 모임에서 나간다. */
+    public void leave(Instant now) {
+        this.status = ParticipationStatus.LEFT;
+        this.leftAt = now;
+    }
+
+    public boolean isPending() {
+        return status == ParticipationStatus.PENDING;
+    }
+
+    public boolean isConfirmed() {
+        return status == ParticipationStatus.CONFIRMED;
+    }
 }

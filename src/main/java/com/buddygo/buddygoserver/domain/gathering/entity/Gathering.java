@@ -98,6 +98,11 @@ public class Gathering extends BaseEntity {
         return status == GatheringStatus.IN_PROGRESS || status == GatheringStatus.FINISHED || !now.isBefore(startAt);
     }
 
+    /** 신청·수락을 받는지. 모집중이어도 데드라인이 지났으면(정원 미달 자동 취소 대상) 받지 않는다. */
+    public boolean isRecruiting(Instant now, Instant deadline) {
+        return status == GatheringStatus.RECRUITING && now.isBefore(deadline);
+    }
+
     public boolean isCanceled() {
         return status == GatheringStatus.CANCELED;
     }
@@ -120,6 +125,16 @@ public class Gathering extends BaseEntity {
         this.endAt = startAt.plus(duration);
         this.capacity = capacity;
         this.genderRule = genderRule;
+    }
+
+    /** 확정 = 정원이 되면 자동 마감된다. 호스트가 직접 마감하는 기능은 없다. */
+    public void close() {
+        this.status = GatheringStatus.CLOSED;
+    }
+
+    /** 데드라인 전에 마감된 모임에서 확정 참가자가 나가면 다시 모집한다. */
+    public void reopen() {
+        this.status = GatheringStatus.RECRUITING;
     }
 
     public void cancel() {

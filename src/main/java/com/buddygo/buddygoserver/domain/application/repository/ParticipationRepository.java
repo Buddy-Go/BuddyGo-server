@@ -43,6 +43,14 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             order by p.decidedAt, p.id""")
     List<Participation> findConfirmedWithUser(Long gatheringId);
 
+    @Query("""
+            select p from Participation p
+            join fetch p.user
+            where p.gathering.id = :gatheringId
+              and p.status = com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.PENDING
+            order by p.appliedAt, p.id""")
+    List<Participation> findPendingWithUser(Long gatheringId);
+
     /** 모임 삭제·취소 때 남은 대기 신청을 모두 자동 거절한다. */
     @Modifying(flushAutomatically = true)
     @Query("""
