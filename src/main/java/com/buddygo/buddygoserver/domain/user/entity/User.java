@@ -69,4 +69,9 @@ public class User extends BaseEntity {
                 .gender(gender)
                 .build();
     }
+
+    /** 마이페이지의 전체 알림 ON/OFF */
+    public void changePushEnabled(boolean pushEnabled) {
+        this.pushEnabled = pushEnabled;
+    }
 }
