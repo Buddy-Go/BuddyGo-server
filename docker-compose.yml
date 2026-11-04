@@ -1,0 +1,72 @@
+# 서버 배포용. 로컬 개발은 docker-compose.local.yml을 쓴다.
+# 값은 같은 디렉터리의 .env에서 읽는다 (.env.example 참고, .env는 커밋하지 않는다).
+services:
+  app:
+    image: ghcr.io/buddy-go/buddygo-server:${IMAGE_TAG:-latest}
+    container_name: buddygo-app
+    # 외부 공개는 앞단 리버스 프록시(HTTPS)가 맡는다. 호스트 루프백에만 묶는다.
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+    # DB 초기화가 끝나기 전에 앱이 붙으면 재시작을 반복하므로, 실제로 연결 가능해질 때까지 기다린다.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  postgres:
+    # 공식 postgis/postgis는 arm64 빌드가 없어 로컬과 같은 이미지를 빌드해 쓴다 (인스턴스 아키텍처 무관).
+    build: ./docker/postgres
+    image: buddygo-postgres:17-postgis
+    container_name: buddygo-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    # 인터넷엔 열지 않고, SSH 터널로 DB 클라이언트를 붙일 때만 쓴다.
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+    logging: *default-logging
+
+  redis:
+    image: redis:7.4
+    container_name: buddygo-redis
+    # 리프레시 토큰 세션이 들어 있어, 재시작해도 전원 로그아웃되지 않게 AOF로 영속화한다.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    logging: *default-logging
+
+# 데이터는 named volume에 둔다. `docker compose down -v`는 DB를 지우므로 쓰지 않는다.
+volumes:
+  postgres-data:
+  redis-data:
