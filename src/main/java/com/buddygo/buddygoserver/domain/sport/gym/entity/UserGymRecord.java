@@ -1,6 +1,7 @@
 package com.buddygo.buddygoserver.domain.sport.gym.entity;
 
 import com.buddygo.buddygoserver.domain.sport.gym.enums.ArmLevel;
+import com.buddygo.buddygoserver.domain.sport.gym.enums.BodyPart;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -42,4 +43,22 @@ public class UserGymRecord {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public static UserGymRecord of(User user, BodyPart bodyPart, BigDecimal recordValue, ArmLevel armLevel) {
+        return UserGymRecord.builder()
+                .id(new UserGymRecordId(user.getId(), bodyPart))
+                .user(user)
+                .recordValue(recordValue)
+                .armLevel(armLevel)
+                .build();
+    }
+
+    public BodyPart getBodyPart() {
+        return id.getBodyPart();
+    }
+
+    public void update(BigDecimal recordValue, ArmLevel armLevel) {
+        this.recordValue = recordValue;
+        this.armLevel = armLevel;
+    }
 }
