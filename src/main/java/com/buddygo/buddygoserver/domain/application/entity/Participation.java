@@ -59,4 +59,15 @@ public class Participation {
 
     @Column(name = "left_at")
     private Instant leftAt;
+
+    /** 개설 시 호스트도 확정 참여 레코드를 가진다. 체크인·확정 인원을 참여 레코드만으로 셀 수 있게 한다. */
+    public static Participation hostOf(Gathering gathering, Instant now) {
+        return Participation.builder()
+                .gathering(gathering)
+                .user(gathering.getHost())
+                .status(ParticipationStatus.CONFIRMED)
+                .appliedAt(now)
+                .decidedAt(now)
+                .build();
+    }
 }

@@ -35,4 +35,13 @@ public class GatheringCancellation {
 
     @Column(name = "canceled_at", nullable = false)
     private Instant canceledAt;
+
+    public static GatheringCancellation byHost(Gathering gathering, String reason, Instant canceledAt) {
+        return GatheringCancellation.builder()
+                .gathering(gathering)
+                .type(CancellationType.HOST)
+                .reason(reason)
+                .canceledAt(canceledAt)
+                .build();
+    }
 }

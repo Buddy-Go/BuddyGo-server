@@ -45,4 +45,15 @@ public class Place extends BaseCreatedEntity {
     /** geometry(Point,4326) · GIST 인덱스는 마이그레이션에서 추가 */
     @Column(nullable = false, columnDefinition = "geometry(Point,4326)")
     private Point location;
+
+    /** 장소 검색에 없는 곳이나 넓은 장소에서 지도로 찍은 집결지. 카카오 장소 ID 가 없어 매번 새로 만든다. */
+    public static Place pinned(String name, String roadAddress, String jibunAddress, String regionCode, Point location) {
+        return Place.builder()
+                .name(name)
+                .roadAddress(roadAddress)
+                .jibunAddress(jibunAddress)
+                .regionCode(regionCode)
+                .location(location)
+                .build();
+    }
 }

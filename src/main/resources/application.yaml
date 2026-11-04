@@ -32,6 +32,26 @@ app:
   # 서비스 기준 시간대. 저장·응답은 UTC Instant 이고, 날짜·시간대 조건 해석에만 쓴다 (TimeConfig)
   time-zone: Asia/Seoul
 
+# 서비스 규칙 정의서 0장의 설정값. 바뀔 수 있어 코드에 쓰지 않는다.
+gathering:
+  # 데드라인 = 시작 - 이 값. 개설·시작 시각 변경은 지금 + 이 값 이후만 된다.
+  deadline-before-start: 90m
+  # 시작 시각 단위. 시작 시각은 이 단위의 정각(초 0)이어야 한다.
+  start-time-step: 10m
+  # 정원(호스트 포함)
+  min-capacity: 2
+  max-capacity: 3
+  # 진행 시간
+  min-duration: 30m
+  max-duration: 4h
+  duration-step: 10m
+
+gym:
+  criteria:
+    # 기준 범위: 호스트 기록 ±이 값. 팔은 숙련도가 같아야 한다.
+    weight-tolerance-kg: 10
+    reps-tolerance: 2
+
 auth:
   login-attempt:
     max-failures: 5
