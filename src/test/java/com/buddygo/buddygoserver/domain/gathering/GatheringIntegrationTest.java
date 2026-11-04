@@ -156,6 +156,16 @@ class GatheringIntegrationTest {
         }
 
         @Test
+        void 개설_후_프로필을_바꿔도_모임의_기록은_그대로다() throws Exception {
+            record(host, BodyPart.CHEST, 80);
+            long id = createdId(host, body(null, "[\"CHEST\"]", true));
+            userGymRecordRepository.findAllByIdUserId(host.getId()).getFirst().update(new BigDecimal("120"), null);
+            flushAndClear();
+
+            detail(other, id).andExpect(jsonPath("$.data.gym.parts[0].minValue").value(70));
+        }
+
+        @Test
         void 같은_카카오_장소는_재사용하고_집결지는_매번_새로_만든다() throws Exception {
             long placesBefore = placeRepository.count(); // 로컬 DB 에 남은 장소가 있어도 되도록 차이로 본다
             long first = createdId(host, body("27484196", "[\"CHEST\"]", false));
@@ -230,6 +240,117 @@ class GatheringIntegrationTest {
         }
     }
 
+    @Nested
+    class 상세 {
+
+        @Test
+        void 그_외_사용자는_명단_없이_기준_일치_판정을_받는다() throws Exception {
+            record(host, BodyPart.CHEST, 80);
+            record(host, BodyPart.LEGS, 100);
+            long id = createdId(host, body(null, "[\"CHEST\", \"LEGS\", \"ARM\"]", true));
+            record(other, BodyPart.CHEST, 90);  // 70–90 안
+            record(other, BodyPart.LEGS, 111);  // 90–110 밖
+
+            detail(other, id)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.gym.parts[0].myRecordValue").value(90))
+                    .andExpect(jsonPath("$.data.gym.parts[0].comparison").value("WITHIN"))
+                    .andExpect(jsonPath("$.data.gym.parts[1].myRecordValue").value(111))
+                    .andExpect(jsonPath("$.data.gym.parts[1].comparison").value("ABOVE"))
+                    .andExpect(jsonPath("$.data.gym.parts[2].myRecordValue").doesNotExist())
+                    .andExpect(jsonPath("$.data.gym.parts[2].comparison").value("NO_MY_RECORD"))
+                    .andExpect(jsonPath("$.data.viewer.role").value("NONE"))
+                    .andExpect(jsonPath("$.data.viewer.applicationId").doesNotExist())
+                    .andExpect(jsonPath("$.data.viewer.liked").value(false))
+                    .andExpect(jsonPath("$.data.members").doesNotExist())
+                    .andExpect(jsonPath("$.data.confirmedCount").value(1))
+                    .andExpect(jsonPath("$.data.gym.match.result").value("PARTIAL"))
+                    .andExpect(jsonPath("$.data.gym.match.mismatchedParts").value(contains("LEGS")))
+                    .andExpect(jsonPath("$.data.gym.match.partsWithoutMyRecord").value(contains("ARM")));
+        }
+
+        @Test
+        void 범위보다_낮거나_팔_숙련도가_다르면_맞지_않고_높낮이를_알려준다() throws Exception {
+            record(host, BodyPart.BACK, 10);
+            userGymRecordRepository.save(UserGymRecord.of(host, BodyPart.ARM, null, ArmLevel.INTERMEDIATE));
+            long id = createdId(host, body(null, "[\"BACK\", \"ARM\"]", true));
+            record(other, BodyPart.BACK, 7);  // 8–12 밖
+            userGymRecordRepository.save(UserGymRecord.of(other, BodyPart.ARM, null, ArmLevel.ADVANCED));
+
+            detail(other, id)
+                    .andExpect(jsonPath("$.data.gym.parts[0].comparison").value("BELOW"))
+                    .andExpect(jsonPath("$.data.gym.parts[1].myArmLevel").value("ADVANCED"))
+                    .andExpect(jsonPath("$.data.gym.parts[1].comparison").value("ABOVE"))
+                    .andExpect(jsonPath("$.data.gym.match.result").value("MISMATCH"));
+        }
+
+        @Test
+        void 비교할_부위가_없으면_판정_결과는_null() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            record(other, BodyPart.CHEST, 80);
+
+            detail(other, id)
+                    .andExpect(jsonPath("$.data.gym.parts[0].comparison").value("HOST_HIDDEN"))
+                    .andExpect(jsonPath("$.data.gym.parts[0].myRecordValue").value(80))
+                    .andExpect(jsonPath("$.data.gym.match.result").doesNotExist());
+        }
+
+        @Test
+        void 호스트_카드에_받은_후기_수를_준다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Gathering past = savedGathering(NOW.minus(Duration.ofDays(1)));
+            reviewRepository.save(Review.builder().gathering(past).evaluator(member).target(host)
+                    .rating(ReviewRating.GOOD).build());
+            reviewRepository.save(Review.builder().gathering(past).evaluator(other).target(member)
+                    .rating(ReviewRating.GOOD).build());
+
+            detail(other, id).andExpect(jsonPath("$.data.host.reviewCount").value(1));
+        }
+
+        @Test
+        void 대기_신청_수는_호스트에게만_준다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            participate(id, member, ParticipationStatus.CONFIRMED);
+            participate(id, other, ParticipationStatus.PENDING);
+
+            detail(host, id).andExpect(jsonPath("$.data.pendingCount").value(1));
+            detail(other, id).andExpect(jsonPath("$.data.pendingCount").doesNotExist());
+        }
+
+        @Test
+        void 대기_신청자는_APPLICANT_와_신청_ID_를_받는다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Participation pending = participate(id, other, ParticipationStatus.PENDING);
+
+            detail(other, id)
+                    .andExpect(jsonPath("$.data.viewer.role").value("APPLICANT"))
+                    .andExpect(jsonPath("$.data.viewer.applicationId").value(pending.getId()));
+        }
+
+        @Test
+        void 확정_참가자는_마감된_뒤에만_명단을_본다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            participate(id, member, ParticipationStatus.CONFIRMED);
+
+            detail(member, id)
+                    .andExpect(jsonPath("$.data.viewer.role").value("PARTICIPANT"))
+                    .andExpect(jsonPath("$.data.members").doesNotExist());
+
+            setStatus(id, GatheringStatus.CLOSED);
+            detail(member, id)
+                    .andExpect(jsonPath("$.data.confirmedCount").value(2))
+                    .andExpect(jsonPath("$.data.members.length()").value(2))
+                    .andExpect(jsonPath("$.data.members[0].host").value(true));
+        }
+
+        @Test
+        void 없는_모임은_GA001() throws Exception {
+            detail(other, 999_999L)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("GA001"));
+        }
+    }
+
     // ───────── helpers ─────────
 
     /** 시작 = NOW + 3h, 90분, 정원 3, 누구나 */
@@ -254,6 +375,9 @@ class GatheringIntegrationTest {
         return ((Number) JsonPath.read(json, "$.data.gatheringId")).longValue();
     }
 
+    private ResultActions detail(User user, long id) throws Exception {
+        return mockMvc.perform(get("/api/gatherings/{id}", id).header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
 
 
 
@@ -266,8 +390,32 @@ class GatheringIntegrationTest {
         userGymRecordRepository.save(UserGymRecord.of(user, part, BigDecimal.valueOf(value), null));
     }
 
+    private Participation participate(long gatheringId, User user, ParticipationStatus status) {
+        return participationRepository.save(Participation.builder()
+                .gathering(gatheringRepository.getReferenceById(gatheringId))
+                .user(user)
+                .status(status)
+                .appliedAt(NOW)
+                .decidedAt(status == ParticipationStatus.CONFIRMED ? NOW : null)
+                .build());
+    }
 
+    private void setStatus(long gatheringId, GatheringStatus status) {
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE gatherings SET status = :status WHERE id = :id")
+                .setParameter("status", status.name()).setParameter("id", gatheringId).executeUpdate();
+        entityManager.clear();
+    }
 
+    /** API 로는 지난 시각에 개설할 수 없어 직접 저장한다. */
+    private Gathering savedGathering(Instant startAt) {
+        Place place = placeRepository.save(Place.pinned("집결지", null, "서울 강남구 역삼동 1", "1168010100",
+                new GeometryFactory(new PrecisionModel(), 4326).createPoint(new Coordinate(127.0, 37.5))));
+        Gathering gathering = gatheringRepository.save(Gathering.open(host, place, "지난 모임", null, null,
+                startAt, Duration.ofMinutes(60), (short) 3, GenderRule.ANY));
+        participationRepository.save(Participation.hostOf(gathering, NOW));
+        return gathering;
+    }
 
     private void flushAndClear() {
         entityManager.flush();

@@ -23,4 +23,9 @@ public class GatheringController implements GatheringApi {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(SuccessResponse.created(gatheringCommandService.create(userId, request)));
     }
+
+    @Override
+    public ResponseEntity<SuccessResponse<GatheringDetailResponse>> getDetail(Long userId, Long gatheringId) {
+        return ResponseEntity.ok(SuccessResponse.from(gatheringQueryService.getDetail(gatheringId, userId)));
+    }
 }

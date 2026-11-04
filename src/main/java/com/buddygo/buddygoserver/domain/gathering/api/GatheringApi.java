@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,4 +37,19 @@ public interface GatheringApi {
     @PostMapping
     ResponseEntity<SuccessResponse<GatheringDetailResponse>> create(
             @LoginUserId Long userId, @Valid @RequestBody GatheringCreateRequest request);
+
+    @Operation(summary = "모임 상세",
+            description = """
+                    보는 사람에 따라 내용이 다르다(viewer.role: HOST / PARTICIPANT / APPLICANT / NONE).
+                    - members: 호스트는 항상, 확정 참가자는 마감(CLOSED) 이후에만, 그 외에는 null
+                    - pendingCount: 대기 중인 신청 수. 호스트에게만
+                    - gym.match: 내 기록과 모임 기준의 일치 판정. 호스트 본인에게는 null
+                    - cancellation.reason: 호스트·확정 참가자에게만""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임")
+    })
+    @GetMapping("/{gatheringId}")
+    ResponseEntity<SuccessResponse<GatheringDetailResponse>> getDetail(
+            @LoginUserId Long userId, @PathVariable Long gatheringId);
 }
