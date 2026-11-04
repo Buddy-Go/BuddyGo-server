@@ -36,4 +36,14 @@ public class ApplicationController implements ApplicationApi {
     public ResponseEntity<SuccessResponse<ApplicantsResponse>> getApplicants(Long userId, Long gatheringId) {
         return ResponseEntity.ok(SuccessResponse.from(applicationQueryService.getApplicants(userId, gatheringId)));
     }
+
+    @Override
+    public ResponseEntity<SuccessResponse<ApplicationResponse>> accept(Long userId, Long gatheringId, Long applicationId) {
+        return ResponseEntity.ok(SuccessResponse.from(applicationCommandService.accept(userId, gatheringId, applicationId)));
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<ApplicationResponse>> reject(Long userId, Long gatheringId, Long applicationId) {
+        return ResponseEntity.ok(SuccessResponse.from(applicationCommandService.reject(userId, gatheringId, applicationId)));
+    }
 }

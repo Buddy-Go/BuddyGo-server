@@ -60,4 +60,27 @@ public interface ApplicationApi {
     @GetMapping("/applications")
     ResponseEntity<SuccessResponse<ApplicantsResponse>> getApplicants(
             @LoginUserId Long userId, @PathVariable Long gatheringId);
+
+    @Operation(summary = "신청 수락",
+            description = "호스트만. 수락하면 즉시 확정 인원에 반영되고, 정원이 차면 모임이 마감(CLOSED)되며 남은 대기 신청은 자동 거절된다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "수락 성공. gatheringStatus 로 마감 여부를 알 수 있다."),
+            @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임 · AP001 이 모임의 신청이 아님"),
+            @ApiResponse(responseCode = "409", description = "AP005 대기 중이 아님 · GA003 모집중이 아님(데드라인 지남 포함) · AP003 정원 참")
+    })
+    @PostMapping("/applications/{applicationId}/accept")
+    ResponseEntity<SuccessResponse<ApplicationResponse>> accept(
+            @LoginUserId Long userId, @PathVariable Long gatheringId, @PathVariable Long applicationId);
+
+    @Operation(summary = "신청 거절", description = "호스트만. 대기 중인 신청을 거절한다. 거절된 사람도 모집중이면 다시 신청할 수 있다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "거절 성공"),
+            @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임 · AP001 이 모임의 신청이 아님"),
+            @ApiResponse(responseCode = "409", description = "AP005 대기 중이 아님")
+    })
+    @PostMapping("/applications/{applicationId}/reject")
+    ResponseEntity<SuccessResponse<ApplicationResponse>> reject(
+            @LoginUserId Long userId, @PathVariable Long gatheringId, @PathVariable Long applicationId);
 }

@@ -87,6 +87,18 @@ public class Participation {
         this.status = ParticipationStatus.CANCELED;
     }
 
+    /** 호스트 수락. 즉시 확정 인원에 반영된다. */
+    public void confirm(Instant now) {
+        this.status = ParticipationStatus.CONFIRMED;
+        this.decidedAt = now;
+    }
+
+    public void reject(RejectReason reason, Instant now) {
+        this.status = ParticipationStatus.REJECTED;
+        this.rejectReason = reason;
+        this.decidedAt = now;
+    }
+
     public boolean isPending() {
         return status == ParticipationStatus.PENDING;
     }

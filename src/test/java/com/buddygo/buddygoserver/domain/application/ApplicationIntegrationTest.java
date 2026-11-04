@@ -2,9 +2,11 @@ package com.buddygo.buddygoserver.domain.application;
 
 import com.buddygo.buddygoserver.domain.application.entity.Participation;
 import com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus;
+import com.buddygo.buddygoserver.domain.application.enums.RejectReason;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
 import com.buddygo.buddygoserver.domain.gathering.entity.Place;
+import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.enums.GenderRule;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
@@ -17,6 +19,7 @@ import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider;
+import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -242,6 +245,122 @@ class ApplicationIntegrationTest {
         }
     }
 
+    @Nested
+    class 수락_거절 {
+
+        @Test
+        void 수락하면_확정되고_정원이_남으면_모집중이다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            long applicationId = appliedId(alice, gathering);
+            appliedId(bob, gathering);
+
+            accept(host, gathering, applicationId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                    .andExpect(jsonPath("$.data.gatheringStatus").value("RECRUITING"));
+            flushAndClear();
+
+            assertThat(participationRepository.findById(applicationId).orElseThrow().getDecidedAt()).isEqualTo(NOW);
+            assertThat(participationRepository.findActive(gathering.getId(), bob.getId()).orElseThrow().isPending())
+                    .isTrue();
+        }
+
+        @Test
+        void 마지막_자리를_수락하면_마감되고_남은_대기_신청은_자동_거절된다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            confirmed(gathering, alice);
+            long bobId = appliedId(bob, gathering);
+            long carolId = appliedId(carol, gathering);
+
+            accept(host, gathering, bobId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                    .andExpect(jsonPath("$.data.gatheringStatus").value("CLOSED"));
+            flushAndClear();
+
+            assertThat(gatheringRepository.findById(gathering.getId()).orElseThrow().getStatus())
+                    .isEqualTo(GatheringStatus.CLOSED);
+            assertThat(participationRepository.findById(bobId).orElseThrow().getStatus())
+                    .isEqualTo(ParticipationStatus.CONFIRMED);
+            Participation carolApplication = participationRepository.findById(carolId).orElseThrow();
+            assertThat(carolApplication.getStatus()).isEqualTo(ParticipationStatus.REJECTED);
+            assertThat(carolApplication.getRejectReason()).isEqualTo(RejectReason.MEETING_FULL);
+
+            apply(carol, gathering, "{}").andExpect(jsonPath("$.code").value("GA003"));
+        }
+
+        @Test
+        void 정원이_찬_모임의_신청을_수락하면_AP003() throws Exception {
+            Gathering gathering = gathering(START, 2);
+            long applicationId = appliedId(alice, gathering);
+            confirmed(gathering, bob); // 마감 처리 없이 정원이 찬 상태
+
+            accept(host, gathering, applicationId)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("AP003"));
+        }
+
+        @Test
+        void 데드라인이_지나면_수락할_수_없다() throws Exception {
+            Gathering gathering = gathering(NOW.plus(Duration.ofMinutes(91)), 3);
+            long applicationId = appliedId(alice, gathering);
+            setStartAt(gathering, NOW.plus(Duration.ofMinutes(90))); // 신청 후 데드라인 = NOW
+
+            accept(host, gathering, applicationId)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA003"));
+        }
+
+        @Test
+        void 거절하면_다시_신청할_수_있다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            long applicationId = appliedId(alice, gathering);
+
+            reject(host, gathering, applicationId)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("REJECTED"));
+            flushAndClear();
+            assertThat(participationRepository.findById(applicationId).orElseThrow().getRejectReason())
+                    .isEqualTo(RejectReason.BY_HOST);
+
+            apply(alice, gathering, "{}").andExpect(status().isCreated());
+        }
+
+        @Test
+        void 다른_모임의_신청이면_AP001() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            Gathering other = gathering(START, 3);
+            long applicationId = appliedId(alice, other);
+
+            accept(host, gathering, applicationId)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("AP001"));
+        }
+
+        @Test
+        void 대기_중이_아니면_AP005() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            long applicationId = appliedId(alice, gathering);
+            reject(host, gathering, applicationId).andExpect(status().isOk());
+
+            accept(host, gathering, applicationId)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("AP005"));
+        }
+
+        @Test
+        void 호스트가_아니면_GA002() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            long applicationId = appliedId(alice, gathering);
+
+            accept(bob, gathering, applicationId)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("GA002"));
+            reject(alice, gathering, applicationId)
+                    .andExpect(status().isForbidden());
+        }
+    }
+
     // ───────── helpers ─────────
 
     private User user(String name, Gender gender) {
@@ -289,6 +408,30 @@ class ApplicationIntegrationTest {
         for (BodyPart part : parts) {
             gatheringGymPartRepository.save(GatheringGymPart.of(gathering, part, null, null));
         }
+    }
+
+    private long appliedId(User user, Gathering gathering) throws Exception {
+        String json = apply(user, gathering, "{}").andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(json, "$.data.applicationId")).longValue();
+    }
+
+    private ResultActions accept(User user, Gathering gathering, long applicationId) throws Exception {
+        return mockMvc.perform(post("/api/gatherings/{id}/applications/{applicationId}/accept",
+                gathering.getId(), applicationId).header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
+
+    private ResultActions reject(User user, Gathering gathering, long applicationId) throws Exception {
+        return mockMvc.perform(post("/api/gatherings/{id}/applications/{applicationId}/reject",
+                gathering.getId(), applicationId).header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
+
+    private void setStartAt(Gathering gathering, Instant startAt) {
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE gatherings SET start_at = :startAt, end_at = :endAt WHERE id = :id")
+                .setParameter("startAt", startAt).setParameter("endAt", startAt.plus(Duration.ofHours(1)))
+                .setParameter("id", gathering.getId()).executeUpdate();
+        entityManager.clear();
     }
 
     private String bearer(User user) {

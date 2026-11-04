@@ -127,6 +127,11 @@ public class Gathering extends BaseEntity {
         this.genderRule = genderRule;
     }
 
+    /** 확정 = 정원이 되면 자동 마감된다. 호스트가 직접 마감하는 기능은 없다. */
+    public void close() {
+        this.status = GatheringStatus.CLOSED;
+    }
+
     public void cancel() {
         this.status = GatheringStatus.CANCELED;
     }

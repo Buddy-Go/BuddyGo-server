@@ -2,6 +2,8 @@ package com.buddygo.buddygoserver.domain.application.service;
 
 import com.buddygo.buddygoserver.domain.application.dto.response.ApplicationResponse;
 import com.buddygo.buddygoserver.domain.application.entity.Participation;
+import com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus;
+import com.buddygo.buddygoserver.domain.application.enums.RejectReason;
 import com.buddygo.buddygoserver.domain.application.exception.ApplicationErrorType;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.gathering.config.GatheringProperties;
@@ -71,6 +73,59 @@ public class ApplicationCommandService {
             throw new CustomException(ApplicationErrorType.NOT_PENDING);
         }
         application.cancel();
+    }
+
+    /**
+     * 수락. 정원(호스트 포함 확정 인원)이 차면 즉시 마감하고 남은 대기 신청을 모두 자동 거절한다.
+     */
+    public ApplicationResponse accept(Long userId, Long gatheringId, Long applicationId) {
+        Instant now = Instant.now(clock);
+        Gathering gathering = lockGatheringAsHost(gatheringId, userId);
+        Participation application = pendingApplicationOf(gathering, applicationId);
+        if (!gathering.isRecruiting(now, gatheringProperties.deadlineOf(gathering.getStartAt()))) {
+            throw new CustomException(GatheringErrorType.NOT_RECRUITING);
+        }
+        long confirmed = participationRepository.countByGatheringIdAndStatus(gatheringId, ParticipationStatus.CONFIRMED);
+        if (confirmed >= gathering.getCapacity()) {
+            throw new CustomException(ApplicationErrorType.GATHERING_FULL);
+        }
+
+        application.confirm(now);
+        if (confirmed + 1 == gathering.getCapacity()) {
+            gathering.close();
+            // 벌크 UPDATE 전에 위의 수락이 flush 되므로(flushAutomatically) 수락한 신청은 거절되지 않는다
+            participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_FULL, now);
+            // TODO 마감 알림(호스트 + 확정 참가자) · 자동 거절 알림
+        }
+        // TODO 수락 알림
+        return ApplicationResponse.from(application);
+    }
+
+    public ApplicationResponse reject(Long userId, Long gatheringId, Long applicationId) {
+        Gathering gathering = lockGatheringAsHost(gatheringId, userId);
+        Participation application = pendingApplicationOf(gathering, applicationId);
+        application.reject(RejectReason.BY_HOST, Instant.now(clock));
+        // TODO 거절 알림
+        return ApplicationResponse.from(application);
+    }
+
+    private Gathering lockGatheringAsHost(Long gatheringId, Long userId) {
+        Gathering gathering = lockGathering(gatheringId);
+        if (!gathering.isHostedBy(userId)) {
+            throw new CustomException(GatheringErrorType.NOT_HOST);
+        }
+        return gathering;
+    }
+
+    /** 다른 모임의 신청 ID 면 없는 신청으로 본다. */
+    private Participation pendingApplicationOf(Gathering gathering, Long applicationId) {
+        Participation application = participationRepository.findById(applicationId)
+                .filter(p -> p.getGathering().getId().equals(gathering.getId()))
+                .orElseThrow(() -> new CustomException(ApplicationErrorType.NOT_FOUND));
+        if (!application.isPending()) {
+            throw new CustomException(ApplicationErrorType.NOT_PENDING);
+        }
+        return application;
     }
 
     private Gathering lockGathering(Long gatheringId) {
