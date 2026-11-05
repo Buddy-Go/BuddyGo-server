@@ -4,6 +4,9 @@ import com.buddygo.buddygoserver.domain.application.entity.Participation;
 import com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus;
 import com.buddygo.buddygoserver.domain.application.enums.RejectReason;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
+import com.buddygo.buddygoserver.domain.checkin.entity.CheckIn;
+import com.buddygo.buddygoserver.domain.checkin.enums.Attendance;
+import com.buddygo.buddygoserver.domain.checkin.repository.CheckInRepository;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
 import com.buddygo.buddygoserver.domain.gathering.entity.GatheringCancellation;
 import com.buddygo.buddygoserver.domain.gathering.entity.Place;
@@ -30,8 +33,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 /**
  * 로컬 PostgreSQL(docker-compose.local.yml)이 떠 있어야 한다. DB 는 테스트마다 롤백된다.
@@ -45,6 +51,8 @@ class GatheringStatusSchedulerTest {
     static final Instant START = NOW.plus(Duration.ofHours(3));
     /** 시작 - 90분 */
     static final Instant DEADLINE = START.minus(Duration.ofMinutes(90));
+    /** 시작 + 10분 */
+    static final Instant NO_SHOW_AT = START.plus(Duration.ofMinutes(10));
     /** 시작 + 60분 */
     static final Instant END = START.plus(Duration.ofMinutes(60));
 
@@ -54,6 +62,7 @@ class GatheringStatusSchedulerTest {
     @Autowired GatheringCancellationRepository gatheringCancellationRepository;
     @Autowired PlaceRepository placeRepository;
     @Autowired ParticipationRepository participationRepository;
+    @Autowired CheckInRepository checkInRepository;
     @Autowired EntityManager entityManager;
 
     User host;
@@ -113,6 +122,8 @@ class GatheringStatusSchedulerTest {
             run(END);
 
             assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.CANCELED);
+            assertThat(checkInRepository.findAll()).noneMatch(c -> c.getParticipation().getGathering().getId()
+                    .equals(gathering.getId()));
         }
     }
 
@@ -152,6 +163,71 @@ class GatheringStatusSchedulerTest {
 
             assertThat(statusOf(canceled)).isEqualTo(GatheringStatus.CANCELED);
             assertThat(statusOf(deleted)).isEqualTo(GatheringStatus.CLOSED);
+            assertThat(attendanceOf(deleted)).isEmpty();
+        }
+    }
+
+    @Nested
+    class 노쇼 {
+
+        @Test
+        void 시작_10분이_지나도록_체크인하지_않은_확정_참가자는_노쇼가_되고_체크인한_사람은_그대로다() {
+            Gathering gathering = gathering(START, GatheringStatus.CLOSED);
+            Participation hostParticipation = participationOf(gathering, host);
+            Participation aliceParticipation = confirmed(gathering, alice);
+            participationRepository.save(Participation.apply(gathering, bob, null, NOW)); // 대기 신청은 대상이 아니다
+            run(START);
+            checkInRepository.save(CheckIn.builder().participation(hostParticipation)
+                    .attendance(Attendance.ON_TIME).checkedInAt(START).distanceM(10).build());
+
+            run(NO_SHOW_AT.minusSeconds(1));
+            assertThat(attendanceOf(gathering)).containsOnly(entry(hostParticipation.getId(), Attendance.ON_TIME));
+
+            run(NO_SHOW_AT);
+            assertThat(attendanceOf(gathering)).containsOnly(
+                    entry(hostParticipation.getId(), Attendance.ON_TIME),
+                    entry(aliceParticipation.getId(), Attendance.NO_SHOW));
+        }
+
+        @Test
+        void 호스트가_노쇼여도_모임은_진행되고_종료된다() {
+            Gathering gathering = gathering(START, GatheringStatus.CLOSED);
+            Participation hostParticipation = participationOf(gathering, host);
+
+            run(START);
+            run(NO_SHOW_AT);
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.IN_PROGRESS);
+            assertThat(attendanceOf(gathering)).containsOnly(entry(hostParticipation.getId(), Attendance.NO_SHOW));
+
+            run(END);
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.FINISHED);
+        }
+
+        @Test
+        void 여러_시점이_한꺼번에_지나도_한_번에_종료와_노쇼까지_처리된다() {
+            Gathering gathering = gathering(START, GatheringStatus.CLOSED);
+            Participation hostParticipation = participationOf(gathering, host);
+            Participation aliceParticipation = confirmed(gathering, alice);
+
+            run(END.plus(Duration.ofHours(1)));
+
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.FINISHED);
+            assertThat(attendanceOf(gathering)).containsOnly(
+                    entry(hostParticipation.getId(), Attendance.NO_SHOW),
+                    entry(aliceParticipation.getId(), Attendance.NO_SHOW));
+        }
+
+        @Test
+        void 다시_돌려도_결과가_같다() {
+            Gathering gathering = gathering(START, GatheringStatus.CLOSED);
+            Participation aliceParticipation = confirmed(gathering, alice);
+
+            run(NO_SHOW_AT);
+            run(NO_SHOW_AT);
+
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.IN_PROGRESS);
+            assertThat(attendanceOf(gathering)).hasSize(2)
+                    .containsEntry(aliceParticipation.getId(), Attendance.NO_SHOW);
         }
     }
 
@@ -181,8 +257,24 @@ class GatheringStatusSchedulerTest {
         return gathering;
     }
 
+    private Participation confirmed(Gathering gathering, User user) {
+        return participationRepository.save(Participation.builder()
+                .gathering(gathering).user(user).status(ParticipationStatus.CONFIRMED)
+                .appliedAt(NOW).decidedAt(NOW).build());
+    }
+
+    private Participation participationOf(Gathering gathering, User user) {
+        return participationRepository.findActive(gathering.getId(), user.getId()).orElseThrow();
+    }
+
     private GatheringStatus statusOf(Gathering gathering) {
         return gatheringRepository.findById(gathering.getId()).orElseThrow().getStatus();
     }
 
+    /** 참여 ID → 출석 판정 */
+    private Map<Long, Attendance> attendanceOf(Gathering gathering) {
+        return checkInRepository.findAll().stream()
+                .filter(c -> c.getParticipation().getGathering().getId().equals(gathering.getId()))
+                .collect(Collectors.toMap(CheckIn::getId, CheckIn::getAttendance));
+    }
 }
