@@ -1,6 +1,8 @@
 package com.buddygo.buddygoserver.domain.buddy.api;
 
+import com.buddygo.buddygoserver.domain.buddy.dto.request.BuddyNotificationRequest;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.ActivityResponse;
+import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyNotificationResponse;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyResponse;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.WorkoutPartnerResponse;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
@@ -11,8 +13,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
@@ -40,6 +45,25 @@ public interface BuddyApi {
             @LoginUserId Long userId,
             @Parameter(description = "닉네임 일부(생략하면 전체)", example = "서")
             @RequestParam(name = "q", required = false) String query);
+
+    @Operation(summary = "버디 끊기", description = "서로의 버디 관계가 함께 사라진다. 함께 운동한 사람이면 다시 신청할 수 있다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "끊기 성공"),
+            @ApiResponse(responseCode = "404", description = "B008 버디가 아님 · U001 없는 사용자")
+    })
+    @DeleteMapping("/api/buddies/{userId}")
+    ResponseEntity<SuccessResponse<Void>> delete(@LoginUserId Long loginUserId, @PathVariable("userId") Long buddyId);
+
+    @Operation(summary = "버디별 알림 설정",
+            description = "이 버디가 모임을 개설·신청할 때 나에게 알릴지. 보낸 항목만 바뀌고, 상대 쪽 설정에는 영향이 없다. 기본값은 모두 ON.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "변경 성공(변경 후 설정)"),
+            @ApiResponse(responseCode = "404", description = "B008 버디가 아님")
+    })
+    @PatchMapping("/api/buddies/{userId}/notification")
+    ResponseEntity<SuccessResponse<BuddyNotificationResponse>> changeNotification(
+            @LoginUserId Long loginUserId, @PathVariable("userId") Long buddyId,
+            @RequestBody BuddyNotificationRequest request);
 
     @Operation(summary = "버디 활동 조회",
             description = """

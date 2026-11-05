@@ -1,9 +1,12 @@
 package com.buddygo.buddygoserver.domain.buddy.controller;
 
 import com.buddygo.buddygoserver.domain.buddy.api.BuddyApi;
+import com.buddygo.buddygoserver.domain.buddy.dto.request.BuddyNotificationRequest;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.ActivityResponse;
+import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyNotificationResponse;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyResponse;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.WorkoutPartnerResponse;
+import com.buddygo.buddygoserver.domain.buddy.service.BuddyCommandService;
 import com.buddygo.buddygoserver.domain.buddy.service.BuddyQueryService;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BuddyController implements BuddyApi {
 
+    private final BuddyCommandService buddyCommandService;
     private final BuddyQueryService buddyQueryService;
 
     @Override
@@ -26,6 +30,18 @@ public class BuddyController implements BuddyApi {
     @Override
     public ResponseEntity<SuccessResponse<List<WorkoutPartnerResponse>>> getWorkoutPartners(Long userId, String query) {
         return ResponseEntity.ok(SuccessResponse.from(buddyQueryService.getWorkoutPartners(userId, query)));
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<Void>> delete(Long loginUserId, Long buddyId) {
+        buddyCommandService.delete(loginUserId, buddyId);
+        return ResponseEntity.ok(SuccessResponse.ok());
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<BuddyNotificationResponse>> changeNotification(
+            Long loginUserId, Long buddyId, BuddyNotificationRequest request) {
+        return ResponseEntity.ok(SuccessResponse.from(buddyCommandService.changeNotification(loginUserId, buddyId, request)));
     }
 
     @Override

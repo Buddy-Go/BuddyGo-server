@@ -4,6 +4,7 @@ import com.buddygo.buddygoserver.domain.application.entity.Participation;
 import com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.buddy.entity.Buddy;
+import com.buddygo.buddygoserver.domain.buddy.entity.BuddyId;
 import com.buddygo.buddygoserver.domain.buddy.entity.BuddyRequest;
 import com.buddygo.buddygoserver.domain.buddy.enums.BuddyRequestStatus;
 import com.buddygo.buddygoserver.domain.buddy.repository.BuddyRepository;
@@ -52,6 +53,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -319,6 +321,48 @@ class BuddyIntegrationTest {
                     .andExpect(jsonPath("$.data[0].role").value("APPLICANT"))
                     .andExpect(jsonPath("$.data[1].role").value("HOST"));
             activities(carol, bob).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("B005"));
+        }
+    }
+
+    @Nested
+    class 끊기와_알림_설정 {
+
+        @Test
+        void 끊으면_두_방향_모두_사라지고_다시_신청할_수_있다() throws Exception {
+            workedOut(PAST, alice, bob);
+            accept(bob, idOf(send(alice, bob)));
+
+            unbuddy(bob, alice).andExpect(status().isOk());
+            flushAndClear();
+            assertThat(buddyRepository.areBuddies(alice.getId(), bob.getId())).isFalse();
+            assertThat(buddyRepository.areBuddies(bob.getId(), alice.getId())).isFalse();
+
+            unbuddy(bob, alice).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B008"));
+            send(alice, bob).andExpect(status().isCreated()).andExpect(jsonPath("$.data.status").value("PENDING"));
+        }
+
+        @Test
+        void 알림_설정은_보낸_항목만_내_쪽만_바뀐다() throws Exception {
+            buddies(alice, bob);
+
+            mockMvc.perform(patch("/api/buddies/{userId}/notification", bob.getId())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(alice))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"gatheringCreated\": false}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.userId").value(bob.getId()))
+                    .andExpect(jsonPath("$.data.gatheringCreated").value(false))
+                    .andExpect(jsonPath("$.data.gatheringApplied").value(true));
+
+            flushAndClear();
+            Buddy mine = buddyRepository.findById(new BuddyId(alice.getId(), bob.getId())).orElseThrow();
+            Buddy theirs = buddyRepository.findById(new BuddyId(bob.getId(), alice.getId())).orElseThrow();
+            assertThat(mine.isNotifyGatheringCreated()).isFalse();
+            assertThat(theirs.isNotifyGatheringCreated()).isTrue();
+
+            mockMvc.perform(patch("/api/buddies/{userId}/notification", carol.getId())
+                            .header(HttpHeaders.AUTHORIZATION, bearer(alice))
+                            .contentType(MediaType.APPLICATION_JSON).content("{\"gatheringApplied\": false}"))
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B008"));
         }
     }
 

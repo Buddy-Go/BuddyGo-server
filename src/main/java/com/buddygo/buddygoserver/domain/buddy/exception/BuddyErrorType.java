@@ -19,6 +19,7 @@ public enum BuddyErrorType implements BaseErrorType {
     NOT_BUDDY(HttpStatus.FORBIDDEN, "B005", "버디만 조회할 수 있습니다."),
     SELF_REQUEST(HttpStatus.BAD_REQUEST, "B006", "자기 자신에게 버디 신청할 수 없습니다."),
     NOT_WORKOUT_PARTNER(HttpStatus.FORBIDDEN, "B007", "함께 운동한 사람에게만 버디 신청할 수 있습니다."),
+    BUDDY_NOT_FOUND(HttpStatus.NOT_FOUND, "B008", "버디가 아닙니다."),
     ;
 
     private final HttpStatus status;
