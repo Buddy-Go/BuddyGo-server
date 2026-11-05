@@ -4,6 +4,7 @@ import com.buddygo.buddygoserver.domain.checkin.entity.CheckIn;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
@@ -37,6 +38,35 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
                 JOIN check_ins cb ON cb.participation_id = pb.id AND cb.attendance IN ('ON_TIME', 'LATE')
                 WHERE pa.user_id = :userId)""")
     boolean workedOutTogether(Long userId, Long otherId);
+
+    interface WorkoutPartner {
+        Long getUserId();
+
+        String getNickname();
+
+        long getWorkoutCount();
+
+        Instant getLastWorkoutAt();
+    }
+
+    /**
+     * 함께 운동한 사람: 함께한 모임 수와 마지막으로 함께한 모임의 시작 시각. 최근에 함께한 순.
+     * nicknamePattern 은 ILIKE 패턴('%' 이면 전체).
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT other.user_id AS userId, u.nickname AS nickname,
+                   COUNT(DISTINCT g.id) AS workoutCount, MAX(g.start_at) AS lastWorkoutAt
+            FROM participations mine
+            JOIN check_ins mc ON mc.participation_id = mine.id AND mc.attendance IN ('ON_TIME', 'LATE')
+            JOIN gatherings g ON g.id = mine.gathering_id
+                 AND g.status IN ('IN_PROGRESS', 'FINISHED') AND g.deleted_at IS NULL
+            JOIN participations other ON other.gathering_id = g.id AND other.user_id <> mine.user_id
+            JOIN check_ins oc ON oc.participation_id = other.id AND oc.attendance IN ('ON_TIME', 'LATE')
+            JOIN users u ON u.id = other.user_id
+            WHERE mine.user_id = :userId AND u.nickname ILIKE :nicknamePattern ESCAPE '\\'
+            GROUP BY other.user_id, u.nickname
+            ORDER BY MAX(g.start_at) DESC, other.user_id""")
+    List<WorkoutPartner> findWorkoutPartners(Long userId, String nicknamePattern);
 
     interface AttendedCount {
         Long getUserId();

@@ -2,15 +2,18 @@ package com.buddygo.buddygoserver.domain.buddy.api;
 
 import com.buddygo.buddygoserver.domain.buddy.dto.response.ActivityResponse;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyResponse;
+import com.buddygo.buddygoserver.domain.buddy.dto.response.WorkoutPartnerResponse;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import com.buddygo.buddygoserver.global.security.LoginUserId;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -26,6 +29,17 @@ public interface BuddyApi {
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/api/buddies")
     ResponseEntity<SuccessResponse<List<BuddyResponse>>> getBuddies(@LoginUserId Long userId);
+
+    @Operation(summary = "함께 운동한 사람",
+            description = """
+                    같은 모임에서 둘 다 체크인(정상·지각)한 사람. 노쇼는 빠진다. 최근에 함께한 순.
+                    함께한 모임 수, 마지막 운동일, 버디 관계(NONE '메이트 신청' · REQUEST_SENT '신청함' · REQUEST_RECEIVED · BUDDY '메이트')를 담는다.""")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @GetMapping("/api/buddies/workout-partners")
+    ResponseEntity<SuccessResponse<List<WorkoutPartnerResponse>>> getWorkoutPartners(
+            @LoginUserId Long userId,
+            @Parameter(description = "닉네임 일부(생략하면 전체)", example = "서")
+            @RequestParam(name = "q", required = false) String query);
 
     @Operation(summary = "버디 활동 조회",
             description = """

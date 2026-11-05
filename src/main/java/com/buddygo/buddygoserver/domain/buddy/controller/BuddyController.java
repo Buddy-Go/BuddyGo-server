@@ -3,6 +3,7 @@ package com.buddygo.buddygoserver.domain.buddy.controller;
 import com.buddygo.buddygoserver.domain.buddy.api.BuddyApi;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.ActivityResponse;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyResponse;
+import com.buddygo.buddygoserver.domain.buddy.dto.response.WorkoutPartnerResponse;
 import com.buddygo.buddygoserver.domain.buddy.service.BuddyQueryService;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,11 @@ public class BuddyController implements BuddyApi {
     @Override
     public ResponseEntity<SuccessResponse<List<BuddyResponse>>> getBuddies(Long userId) {
         return ResponseEntity.ok(SuccessResponse.from(buddyQueryService.getBuddies(userId)));
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<List<WorkoutPartnerResponse>>> getWorkoutPartners(Long userId, String query) {
+        return ResponseEntity.ok(SuccessResponse.from(buddyQueryService.getWorkoutPartners(userId, query)));
     }
 
     @Override

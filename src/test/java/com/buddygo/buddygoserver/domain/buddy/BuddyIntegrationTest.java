@@ -227,6 +227,45 @@ class BuddyIntegrationTest {
     }
 
     @Nested
+    class 함께_운동한_사람 {
+
+        @Test
+        void 함께한_횟수와_마지막_운동일_관계가_최근_순으로_나온다() throws Exception {
+            workedOut(PAST, alice, bob);
+            workedOut(PAST.minus(Duration.ofDays(7)), alice, bob);
+            workedOut(PAST.minus(Duration.ofDays(1)), carol, alice);
+            send(alice, bob);
+
+            partners(alice, null).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[*].nickname", contains("bob", "carol")))
+                    .andExpect(jsonPath("$.data[0].workoutCount").value(2))
+                    .andExpect(jsonPath("$.data[0].lastWorkoutAt").value(PAST.toString()))
+                    .andExpect(jsonPath("$.data[0].relation").value("REQUEST_SENT"))
+                    .andExpect(jsonPath("$.data[0].requestId").isNumber())
+                    .andExpect(jsonPath("$.data[1].workoutCount").value(1))
+                    .andExpect(jsonPath("$.data[1].relation").value("NONE"))
+                    .andExpect(jsonPath("$.data[1].requestId").doesNotExist());
+            partners(bob, null).andExpect(jsonPath("$.data[0].relation").value("REQUEST_RECEIVED"));
+
+            accept(bob, requestId(alice, bob));
+            partners(alice, null).andExpect(jsonPath("$.data[0].relation").value("BUDDY"));
+        }
+
+        @Test
+        void 닉네임_일부로_찾고_노쇼한_사람은_빠진다() throws Exception {
+            workedOut(PAST, alice, bob, carol);
+            Gathering noShow = gathering(PAST.plus(Duration.ofDays(1)), GatheringStatus.FINISHED, alice);
+            checkIn(participationOf(noShow, alice), Attendance.ON_TIME);
+            User dave = user("dave");
+            checkIn(confirmed(noShow, dave), Attendance.NO_SHOW);
+
+            partners(alice, "CAR").andExpect(jsonPath("$.data[*].nickname", contains("carol")));
+            partners(alice, "%").andExpect(jsonPath("$.data", hasSize(0)));
+            partners(alice, " ").andExpect(jsonPath("$.data[*].nickname", contains("bob", "carol")));
+        }
+    }
+
+    @Nested
     class 버디_목록과_활동 {
 
         @Test
