@@ -137,6 +137,16 @@ public class Gathering extends BaseEntity {
         this.status = GatheringStatus.RECRUITING;
     }
 
+    /** 마감된 모임이 시작 시각이 되면 진행중이 된다(스케줄러). */
+    public void start() {
+        this.status = GatheringStatus.IN_PROGRESS;
+    }
+
+    /** 종료 시각(시작 + 진행 시간)이 되면 종료된다(스케줄러). 호스트가 수동으로 종료하지 않는다. */
+    public void finish() {
+        this.status = GatheringStatus.FINISHED;
+    }
+
     public void cancel() {
         this.status = GatheringStatus.CANCELED;
     }

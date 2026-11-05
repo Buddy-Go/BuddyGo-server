@@ -35,4 +35,11 @@ public interface GatheringRepository extends JpaRepository<Gathering, Long> {
             where g.status = :status and g.startAt <= :startAt and g.deletedAt is null
             order by g.startAt, g.id""")
     List<Long> findActiveIdsByStatusStartingBy(GatheringStatus status, Instant startAt);
+
+    /** 상태 전이 스케줄러의 대상 후보: 이 상태이고 종료 시각이 endAt 이전(포함)인 모임 */
+    @Query("""
+            select g.id from Gathering g
+            where g.status = :status and g.endAt <= :endAt and g.deletedAt is null
+            order by g.endAt, g.id""")
+    List<Long> findActiveIdsByStatusEndingBy(GatheringStatus status, Instant endAt);
 }

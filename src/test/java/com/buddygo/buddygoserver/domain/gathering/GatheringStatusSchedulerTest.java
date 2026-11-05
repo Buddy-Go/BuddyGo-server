@@ -45,6 +45,8 @@ class GatheringStatusSchedulerTest {
     static final Instant START = NOW.plus(Duration.ofHours(3));
     /** 시작 - 90분 */
     static final Instant DEADLINE = START.minus(Duration.ofMinutes(90));
+    /** 시작 + 60분 */
+    static final Instant END = START.plus(Duration.ofMinutes(60));
 
     @Autowired GatheringStatusScheduler scheduler;
     @Autowired UserRepository userRepository;
@@ -105,12 +107,51 @@ class GatheringStatusSchedulerTest {
         }
 
         @Test
-        void 시작이_지나도록_모집중이었던_모임도_취소된다() {
+        void 시작이_지나도록_모집중이었던_모임은_진행중이_아니라_취소된다() {
             Gathering gathering = gathering(START, GatheringStatus.RECRUITING);
 
-            run(START.plus(Duration.ofHours(1)));
+            run(END);
 
             assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.CANCELED);
+        }
+    }
+
+    @Nested
+    class 진행과_종료 {
+
+        @Test
+        void 마감된_모임은_시작_시각에_진행중이_된다() {
+            Gathering gathering = gathering(START, GatheringStatus.CLOSED);
+
+            run(START.minusSeconds(1));
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.CLOSED);
+
+            run(START);
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.IN_PROGRESS);
+        }
+
+        @Test
+        void 진행중인_모임은_종료_시각에_종료된다() {
+            Gathering gathering = gathering(START, GatheringStatus.CLOSED);
+            run(START);
+
+            run(END.minusSeconds(1));
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.IN_PROGRESS);
+
+            run(END);
+            assertThat(statusOf(gathering)).isEqualTo(GatheringStatus.FINISHED);
+        }
+
+        @Test
+        void 취소되거나_삭제된_모임은_건드리지_않는다() {
+            Gathering canceled = gathering(START, GatheringStatus.CANCELED);
+            Gathering deleted = gathering(START, GatheringStatus.CLOSED);
+            deleted.delete(NOW);
+
+            run(END);
+
+            assertThat(statusOf(canceled)).isEqualTo(GatheringStatus.CANCELED);
+            assertThat(statusOf(deleted)).isEqualTo(GatheringStatus.CLOSED);
         }
     }
 

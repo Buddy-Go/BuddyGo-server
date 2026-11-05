@@ -16,7 +16,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 시간에 따른 모임 상태 전이 (서비스 규칙 정의서 5장). {@code GatheringStatusScheduler} 가 후보 ID 를 받아
+ * 시간에 따른 모임 상태 전이 (서비스 규칙 정의서 5장 · 6장). {@code GatheringStatusScheduler} 가 후보 ID 를 받아
  * 모임마다 따로 호출하므로 한 모임의 실패가 다른 모임을 막지 않는다.
  *
  * <p>후보 조회와 처리 사이에 나가기·수락 등이 끼어들 수 있어, 처리할 때는 모임 행을 잠그고 조건을 다시 확인한다.
@@ -39,6 +39,18 @@ public class GatheringStatusService {
                 GatheringStatus.RECRUITING, now.plus(gatheringProperties.deadlineBeforeStart()));
     }
 
+    /** 시작 시각이 된 마감 모임 */
+    @Transactional(readOnly = true)
+    public List<Long> findStartable(Instant now) {
+        return gatheringRepository.findActiveIdsByStatusStartingBy(GatheringStatus.CLOSED, now);
+    }
+
+    /** 종료 시각이 된 진행중 모임 */
+    @Transactional(readOnly = true)
+    public List<Long> findFinishable(Instant now) {
+        return gatheringRepository.findActiveIdsByStatusEndingBy(GatheringStatus.IN_PROGRESS, now);
+    }
+
     /**
      * 데드라인에 모집중이면(정원 미달) 자동 취소하고 대기 신청을 자동 거절한다. 누구의 매너온도에도 영향이 없다.
      * 데드라인에 마감 상태인 모임은 그대로 확정되므로 할 일이 없다.
@@ -53,6 +65,27 @@ public class GatheringStatusService {
         gathering.cancel();
         gatheringCancellationRepository.save(GatheringCancellation.underCapacity(gathering, now));
         // TODO 인원 미달 취소 알림(호스트 + 확정 참가자) · 자동 거절 알림 (알림 도메인 구현 후)
+    }
+
+    public void start(Long gatheringId, Instant now) {
+        Gathering gathering = lock(gatheringId);
+        if (gathering == null || gathering.getStatus() != GatheringStatus.CLOSED
+                || now.isBefore(gathering.getStartAt())) {
+            return;
+        }
+        gathering.start();
+        // TODO 운동 시작 알림(아직 체크인하지 않은 호스트·참가자)
+    }
+
+    /** 종료 시각(시작 + 진행 시간)이 되면 종료한다. */
+    public void finish(Long gatheringId, Instant now) {
+        Gathering gathering = lock(gatheringId);
+        if (gathering == null || gathering.getStatus() != GatheringStatus.IN_PROGRESS
+                || now.isBefore(gathering.getEndAt())) {
+            return;
+        }
+        gathering.finish();
+        // TODO 모임 종료 · 평가 가능 알림(체크인한 사람)
     }
 
     /** 후보 조회 뒤 삭제된 모임은 null */
