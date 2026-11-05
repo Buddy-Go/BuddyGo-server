@@ -48,6 +48,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -222,6 +223,63 @@ class BuddyIntegrationTest {
                     .andExpect(jsonPath("$.data[0].mannerTemperature").value(36.5))
                     .andExpect(jsonPath("$.data[0].participationCount").value(2));
             received(bob).andExpect(jsonPath("$.data", hasSize(0)));
+        }
+    }
+
+    @Nested
+    class 버디_목록과_활동 {
+
+        @Test
+        void 지금_운동_중인_버디가_먼저_그다음_가까운_예정_모임_순이고_예정이_없으면_activity_null() throws Exception {
+            User dave = user("dave");
+            buddies(alice, bob);
+            buddies(alice, carol);
+            buddies(alice, dave);
+            // bob: 다음 주 모임 개설
+            Gathering bobHosts = gathering(NOW.plus(Duration.ofDays(7)), GatheringStatus.RECRUITING, bob);
+            // carol: 지금 진행 중인 모임 확정 참가(호스트는 dave 가 아닌 새 사용자)
+            User host = user("host");
+            Gathering running = gathering(NOW.minus(Duration.ofMinutes(20)), GatheringStatus.IN_PROGRESS, host);
+            confirmed(running, carol);
+            // carol 은 내일 모임에도 신청 대기 중이지만 대표 활동은 진행 중인 것
+            participationRepository.save(Participation.apply(
+                    gathering(NOW.plus(Duration.ofDays(1)), GatheringStatus.RECRUITING, host), carol, null, NOW));
+
+            buddyList(alice).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[*].nickname", contains("carol", "bob", "dave")))
+                    .andExpect(jsonPath("$.data[0].activity.gatheringId").value(running.getId()))
+                    .andExpect(jsonPath("$.data[0].activity.inProgress").value(true))
+                    .andExpect(jsonPath("$.data[0].activity.role").value("PARTICIPANT"))
+                    .andExpect(jsonPath("$.data[1].activity.gatheringId").value(bobHosts.getId()))
+                    .andExpect(jsonPath("$.data[1].activity.role").value("HOST"))
+                    .andExpect(jsonPath("$.data[1].activity.placeName").value("버디짐"))
+                    .andExpect(jsonPath("$.data[1].activity.inProgress").value(false))
+                    .andExpect(jsonPath("$.data[2].activity").doesNotExist())
+                    .andExpect(jsonPath("$.data[0].notifyGatheringCreated").value(true));
+        }
+
+        @Test
+        void 버디의_활동은_버디만_볼_수_있고_끝났거나_빠진_모임은_나오지_않는다() throws Exception {
+            buddies(alice, bob);
+            User host = user("host");
+            Gathering hosted = gathering(NOW.plus(Duration.ofDays(2)), GatheringStatus.RECRUITING, bob);
+            Gathering applied = gathering(NOW.plus(Duration.ofDays(1)), GatheringStatus.RECRUITING, host);
+            participationRepository.save(Participation.apply(applied, bob, null, NOW));
+            // 빠지는 것: 끝난 모임, 취소된 모임, 데드라인 지난 모집중 모임, 나간 모임, 노쇼한 진행중 모임
+            confirmed(gathering(PAST, GatheringStatus.FINISHED, host), bob);
+            confirmed(gathering(NOW.plus(Duration.ofDays(3)), GatheringStatus.CANCELED, host), bob);
+            confirmed(gathering(NOW.plus(Duration.ofMinutes(60)), GatheringStatus.RECRUITING, host), bob);
+            Participation left = confirmed(gathering(NOW.plus(Duration.ofDays(4)), GatheringStatus.RECRUITING, host), bob);
+            left.leave(NOW);
+            Gathering running = gathering(NOW.minus(Duration.ofMinutes(20)), GatheringStatus.IN_PROGRESS, host);
+            checkIn(confirmed(running, bob), Attendance.NO_SHOW);
+
+            activities(alice, bob).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data[*].gatheringId", contains(
+                            applied.getId().intValue(), hosted.getId().intValue())))
+                    .andExpect(jsonPath("$.data[0].role").value("APPLICANT"))
+                    .andExpect(jsonPath("$.data[1].role").value("HOST"));
+            activities(carol, bob).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("B005"));
         }
     }
 
