@@ -38,4 +38,13 @@ public class Buddy extends BaseCreatedEntity {
     @Column(name = "notify_gathering_applied", nullable = false)
     @Builder.Default
     private boolean notifyGatheringApplied = true;
+
+    /** user 쪽 한 방향 행. 알림은 기본 ON 이다. */
+    public static Buddy of(User user, User buddy) {
+        return Buddy.builder()
+                .id(new BuddyId(user.getId(), buddy.getId()))
+                .user(user)
+                .buddy(buddy)
+                .build();
+    }
 }

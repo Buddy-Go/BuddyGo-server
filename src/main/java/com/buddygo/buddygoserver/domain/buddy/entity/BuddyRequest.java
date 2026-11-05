@@ -39,4 +39,41 @@ public class BuddyRequest extends BaseCreatedEntity {
 
     @Column(name = "responded_at")
     private Instant respondedAt;
+
+    public static BuddyRequest send(User sender, User receiver) {
+        return BuddyRequest.builder()
+                .sender(sender)
+                .receiver(receiver)
+                .build();
+    }
+
+    public boolean isPending() {
+        return status == BuddyRequestStatus.PENDING;
+    }
+
+    public boolean isSentBy(Long userId) {
+        return sender.getId().equals(userId);
+    }
+
+    public boolean isReceivedBy(Long userId) {
+        return receiver.getId().equals(userId);
+    }
+
+    public void accept(Instant now) {
+        respond(BuddyRequestStatus.ACCEPTED, now);
+    }
+
+    public void reject(Instant now) {
+        respond(BuddyRequestStatus.REJECTED, now);
+    }
+
+    /** 보낸 사람이 대기 중인 신청을 거둔다. */
+    public void cancel(Instant now) {
+        respond(BuddyRequestStatus.CANCELED, now);
+    }
+
+    private void respond(BuddyRequestStatus status, Instant now) {
+        this.status = status;
+        this.respondedAt = now;
+    }
 }
