@@ -46,6 +46,20 @@ gathering:
   max-duration: 4h
   duration-step: 10m
 
+check-in:
+  # 체크인 열림 = 시작 - 이 값
+  open-before-start: 10m
+  # 시작 후 이 값부터 지각
+  late-after-start: 5m
+  # 시작 후 이 값까지 체크인하지 않으면 노쇼
+  no-show-after-start: 10m
+  # 모임 장소에서 이 거리(m) 안에서만 체크인된다
+  radius-meters: 50
+
+review:
+  # 평가 기한: 모임 종료 후 이 기간 안에만 평가할 수 있다
+  deadline-after-end: 3d
+
 gym:
   criteria:
     # 기준 범위: 호스트 기록 ±이 값. 팔은 숙련도가 같아야 한다.
