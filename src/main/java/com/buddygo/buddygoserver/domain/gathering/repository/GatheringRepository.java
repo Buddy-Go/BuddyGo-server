@@ -1,11 +1,14 @@
 package com.buddygo.buddygoserver.domain.gathering.repository;
 
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
+import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /** 삭제된 모임(deleted_at)은 없는 모임으로 본다. */
@@ -25,4 +28,11 @@ public interface GatheringRepository extends JpaRepository<Gathering, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select g from Gathering g where g.id = :id and g.deletedAt is null")
     Optional<Gathering> findActiveByIdForUpdate(Long id);
+
+    /** 상태 전이 스케줄러의 대상 후보: 이 상태이고 시작 시각이 startAt 이전(포함)인 모임 */
+    @Query("""
+            select g.id from Gathering g
+            where g.status = :status and g.startAt <= :startAt and g.deletedAt is null
+            order by g.startAt, g.id""")
+    List<Long> findActiveIdsByStatusStartingBy(GatheringStatus status, Instant startAt);
 }

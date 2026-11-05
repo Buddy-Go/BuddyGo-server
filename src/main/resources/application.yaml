@@ -60,6 +60,13 @@ review:
   # 평가 기한: 모임 종료 후 이 기간 안에만 평가할 수 있다
   deadline-after-end: 3d
 
+scheduler:
+  # 테스트에서는 build.gradle 이 false 로 끈다(공유 로컬 DB 를 건드리지 않도록)
+  enabled: true
+  # 모임 상태 전이(데드라인 정원 미달 취소) 확인 주기. 전이는 최대 이만큼 늦을 수 있어
+  # API 는 상태값과 함께 시각으로도 판정한다.
+  gathering-status-delay: PT30S
+
 gym:
   criteria:
     # 기준 범위: 호스트 기록 ±이 값. 팔은 숙련도가 같아야 한다.
