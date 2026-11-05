@@ -45,6 +45,15 @@ public class GatheringCancellation {
                 .build();
     }
 
+    /** 데드라인까지 정원이 차지 않아 자동 취소됨. 누구의 매너온도에도 영향이 없다. */
+    public static GatheringCancellation underCapacity(Gathering gathering, Instant canceledAt) {
+        return GatheringCancellation.builder()
+                .gathering(gathering)
+                .type(CancellationType.UNDER_CAPACITY)
+                .canceledAt(canceledAt)
+                .build();
+    }
+
     public static GatheringCancellation byHost(Gathering gathering, String reason, Instant canceledAt) {
         return GatheringCancellation.builder()
                 .gathering(gathering)
