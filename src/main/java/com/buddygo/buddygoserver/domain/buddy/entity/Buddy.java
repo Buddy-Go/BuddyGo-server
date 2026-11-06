@@ -15,7 +15,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "buddies")
-/** 수락 시 A→B, B→A 두 행이 생긴다. */
+/**
+ * 수락 시 A→B, B→A 두 행이 생긴다.
+ *
+ * <p>알림 설정은 행의 주인(user) 기준이다: (user=U, buddy=X) 행의 notify_* 는 'X 가 모임을 개설·신청하면 U 에게
+ * 알린다'는 뜻이다. 알림을 보낼 때는 {@code buddy_id = 행동한 사람 and notify_* = true} 인 행의 user 에게 보낸다.
+ */
 public class Buddy extends BaseCreatedEntity {
 
     @EmbeddedId
@@ -38,4 +43,23 @@ public class Buddy extends BaseCreatedEntity {
     @Column(name = "notify_gathering_applied", nullable = false)
     @Builder.Default
     private boolean notifyGatheringApplied = true;
+
+    /** user 쪽 한 방향 행. 알림은 기본 ON 이다. */
+    public static Buddy of(User user, User buddy) {
+        return Buddy.builder()
+                .id(new BuddyId(user.getId(), buddy.getId()))
+                .user(user)
+                .buddy(buddy)
+                .build();
+    }
+
+    /** null 인 항목은 그대로 둔다. */
+    public void changeNotification(Boolean gatheringCreated, Boolean gatheringApplied) {
+        if (gatheringCreated != null) {
+            this.notifyGatheringCreated = gatheringCreated;
+        }
+        if (gatheringApplied != null) {
+            this.notifyGatheringApplied = gatheringApplied;
+        }
+    }
 }
