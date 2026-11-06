@@ -4,6 +4,7 @@ import com.buddygo.buddygoserver.domain.application.entity.Participation;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.ActivityResponse;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyResponse;
+import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyResponse.ActivitySummary;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.WorkoutPartnerResponse;
 import com.buddygo.buddygoserver.domain.buddy.entity.Buddy;
 import com.buddygo.buddygoserver.domain.buddy.entity.BuddyRequest;
@@ -34,11 +35,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class BuddyQueryService {
 
-    /** 대표 활동: 지금 운동 중인 것이 먼저, 그다음 시작이 이른 것 */
-    private static final Comparator<ActivityResponse> REPRESENTATIVE = Comparator
-            .comparing((ActivityResponse a) -> !a.inProgress())
-            .thenComparing(ActivityResponse::startAt);
-
     private final BuddyRepository buddyRepository;
     private final BuddyRequestRepository buddyRequestRepository;
     private final ParticipationRepository participationRepository;
@@ -58,14 +54,21 @@ public class BuddyQueryService {
         if (buddies.isEmpty()) {
             return List.of();
         }
-        Map<Long, List<ActivityResponse>> activities = activitiesOf(
-                buddies.stream().map(b -> b.getBuddy().getId()).toList());
+        Instant now = Instant.now(clock);
+        Map<Long, List<Participation>> activities = activitiesOf(
+                buddies.stream().map(b -> b.getBuddy().getId()).toList(), now);
+        Comparator<ActivitySummary> representative = Comparator
+                .comparing((ActivitySummary a) -> !a.inProgress())
+                .thenComparing(ActivitySummary::startAt);
         Comparator<BuddyResponse> order = Comparator
-                .comparing((BuddyResponse b) -> b.activity(), Comparator.nullsLast(REPRESENTATIVE))
+                .comparing(BuddyResponse::activity, Comparator.nullsLast(representative))
                 .thenComparing(BuddyResponse::nickname);
         return buddies.stream()
                 .map(b -> BuddyResponse.of(b.getBuddy(),
-                        activities.getOrDefault(b.getBuddy().getId(), List.of()).stream().min(REPRESENTATIVE).orElse(null),
+                        activities.getOrDefault(b.getBuddy().getId(), List.of()).stream()
+                                .min(representative(now))
+                                .map(p -> ActivitySummary.of(p, now))
+                                .orElse(null),
                         b.isNotifyGatheringCreated(), b.isNotifyGatheringApplied()))
                 .sorted(order)
                 .toList();
@@ -76,8 +79,18 @@ public class BuddyQueryService {
         if (!buddyRepository.areBuddies(userId, targetId)) {
             throw new CustomException(BuddyErrorType.NOT_BUDDY);
         }
-        return activitiesOf(List.of(targetId)).getOrDefault(targetId, List.of()).stream()
-                .sorted(REPRESENTATIVE)
+        Instant now = Instant.now(clock);
+        List<Participation> activities = activitiesOf(List.of(targetId), now).getOrDefault(targetId, List.of());
+        if (activities.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Long> confirmedCounts = participationRepository.countConfirmedByGatheringIds(
+                        activities.stream().map(p -> p.getGathering().getId()).toList()).stream()
+                .collect(Collectors.toMap(ParticipationRepository.ConfirmedCount::getGatheringId,
+                        ParticipationRepository.ConfirmedCount::getCount));
+        return activities.stream()
+                .sorted(representative(now))
+                .map(p -> ActivityResponse.of(p, now, confirmedCounts.getOrDefault(p.getGathering().getId(), 0L)))
                 .toList();
     }
 
@@ -114,13 +127,17 @@ public class BuddyQueryService {
                 : pending.getOrDefault(id, RelationState.NONE)));
     }
 
-    private Map<Long, List<ActivityResponse>> activitiesOf(List<Long> userIds) {
-        Instant now = Instant.now(clock);
-        List<Participation> participations = participationRepository.findActivities(
-                userIds, now, now.plus(gatheringProperties.deadlineBeforeStart()));
-        return participations.stream().collect(Collectors.groupingBy(
-                p -> p.getUser().getId(),
-                Collectors.mapping(p -> ActivityResponse.of(p, now), Collectors.toList())));
+    /** 사람마다 현재 활동(참여 레코드) */
+    private Map<Long, List<Participation>> activitiesOf(List<Long> userIds, Instant now) {
+        return participationRepository.findActivities(userIds, now, now.plus(gatheringProperties.deadlineBeforeStart()))
+                .stream()
+                .collect(Collectors.groupingBy(p -> p.getUser().getId()));
+    }
+
+    /** 대표 활동: 지금 운동 중인 것이 먼저, 그다음 시작이 이른 것 */
+    private static Comparator<Participation> representative(Instant now) {
+        return Comparator.comparing((Participation p) -> !ActivityResponse.isInProgress(p, now))
+                .thenComparing(p -> p.getGathering().getStartAt());
     }
 
     /** 닉네임 일부 검색용 ILIKE 패턴. LIKE 특수문자는 글자 그대로 찾는다. */

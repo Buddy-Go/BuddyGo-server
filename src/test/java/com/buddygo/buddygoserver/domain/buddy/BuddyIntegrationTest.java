@@ -290,11 +290,12 @@ class BuddyIntegrationTest {
                     .andExpect(jsonPath("$.data[*].nickname", contains("carol", "bob", "dave")))
                     .andExpect(jsonPath("$.data[0].activity.gatheringId").value(running.getId()))
                     .andExpect(jsonPath("$.data[0].activity.inProgress").value(true))
-                    .andExpect(jsonPath("$.data[0].activity.role").value("PARTICIPANT"))
                     .andExpect(jsonPath("$.data[1].activity.gatheringId").value(bobHosts.getId()))
-                    .andExpect(jsonPath("$.data[1].activity.role").value("HOST"))
                     .andExpect(jsonPath("$.data[1].activity.placeName").value("버디짐"))
+                    .andExpect(jsonPath("$.data[1].activity.startAt").value(bobHosts.getStartAt().toString()))
                     .andExpect(jsonPath("$.data[1].activity.inProgress").value(false))
+                    .andExpect(jsonPath("$.data[1].activity.title").doesNotExist())
+                    .andExpect(jsonPath("$.data[1].activity.role").doesNotExist())
                     .andExpect(jsonPath("$.data[2].activity").doesNotExist())
                     .andExpect(jsonPath("$.data[0].notifyGatheringCreated").value(true));
         }
@@ -318,8 +319,13 @@ class BuddyIntegrationTest {
             activities(alice, bob).andExpect(status().isOk())
                     .andExpect(jsonPath("$.data[*].gatheringId", contains(
                             applied.getId().intValue(), hosted.getId().intValue())))
-                    .andExpect(jsonPath("$.data[0].role").value("APPLICANT"))
-                    .andExpect(jsonPath("$.data[1].role").value("HOST"));
+                    .andExpect(jsonPath("$.data[0].title").value("같이 운동해요"))
+                    .andExpect(jsonPath("$.data[0].placeName").value("버디짐"))
+                    .andExpect(jsonPath("$.data[0].startAt").value(applied.getStartAt().toString()))
+                    .andExpect(jsonPath("$.data[0].inProgress").value(false))
+                    .andExpect(jsonPath("$.data[0].confirmedCount").value(1))
+                    .andExpect(jsonPath("$.data[0].capacity").value(3))
+                    .andExpect(jsonPath("$.data[0].role").doesNotExist());
             activities(carol, bob).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("B005"));
         }
     }

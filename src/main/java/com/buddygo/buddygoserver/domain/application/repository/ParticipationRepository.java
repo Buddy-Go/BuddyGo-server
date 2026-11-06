@@ -52,6 +52,20 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             order by p.appliedAt, p.id""")
     List<Participation> findPendingWithUser(Long gatheringId);
 
+    interface ConfirmedCount {
+        Long getGatheringId();
+
+        long getCount();
+    }
+
+    /** 모임마다 확정 인원(호스트 포함) */
+    @Query("""
+            select p.gathering.id as gatheringId, count(p) as count from Participation p
+            where p.gathering.id in :gatheringIds
+              and p.status = com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.CONFIRMED
+            group by p.gathering.id""")
+    List<ConfirmedCount> countConfirmedByGatheringIds(Collection<Long> gatheringIds);
+
     /**
      * 사람들의 현재 활동(버디에게 보이는 것): 개설했거나(호스트 확정 레코드) 신청(대기)·확정한 모임 중
      * 아직 끝나지 않은 모집중·마감·진행중 모임. 상태 전이가 늦을 때를 대비해 시각으로도 거른다:
