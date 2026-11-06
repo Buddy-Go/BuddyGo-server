@@ -519,6 +519,53 @@ class GatheringIntegrationTest {
         }
     }
 
+    /** 데드라인(시작 90분 전)은 지났고 시작 전인데 스케줄러가 아직 돌지 않아 모집중으로 남은 모임 */
+    @Nested
+    class 데드라인_후 {
+
+        static final Instant START_AFTER_DEADLINE = NOW.plus(Duration.ofHours(1));
+
+        @Test
+        void 모집중이면_수정은_GA015() throws Exception {
+            long id = savedGathering(START_AFTER_DEADLINE).getId();
+            update(host, id, "{\"title\": \"늦은 수정\"}")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA015"));
+            update(host, id, "{\"startAt\": \"2026-11-10T05:00:00Z\"}")
+                    .andExpect(jsonPath("$.code").value("GA015"));
+        }
+
+        @Test
+        void 모집중이면_삭제는_GA015() throws Exception {
+            long id = savedGathering(START_AFTER_DEADLINE).getId();
+            deleteGathering(host, id)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA015"));
+        }
+
+        @Test
+        void 모집중이면_확정_참가자가_있어도_취소는_GA015() throws Exception {
+            long id = savedGathering(START_AFTER_DEADLINE).getId();
+            participate(id, member, ParticipationStatus.CONFIRMED);
+
+            cancel(host, id, "{\"reason\": \"사정이 생겼어요\"}")
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GA015"));
+        }
+
+        @Test
+        void 마감된_모임은_취소할_수_있다() throws Exception {
+            long id = savedGathering(START_AFTER_DEADLINE).getId();
+            participate(id, member, ParticipationStatus.CONFIRMED);
+            setStatus(id, GatheringStatus.CLOSED);
+
+            cancel(host, id, "{\"reason\": \"사정이 생겼어요\"}").andExpect(status().isOk());
+            flushAndClear();
+            assertThat(gatheringCancellationRepository.findById(id).orElseThrow().getType())
+                    .isEqualTo(CancellationType.HOST);
+        }
+    }
+
     // ───────── helpers ─────────
 
     /** 시작 = NOW + 3h, 90분, 정원 3, 누구나 */

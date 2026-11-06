@@ -68,8 +68,8 @@ public class GatheringStatusService {
      */
     public void cancelUnderCapacity(Long gatheringId, Instant now) {
         Gathering gathering = lock(gatheringId);
-        if (gathering == null || gathering.getStatus() != GatheringStatus.RECRUITING
-                || now.isBefore(gatheringProperties.deadlineOf(gathering.getStartAt()))) {
+        if (gathering == null
+                || !gathering.isUnfilledAtDeadline(now, gatheringProperties.deadlineOf(gathering.getStartAt()))) {
             return;
         }
         participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_CANCELED, now);

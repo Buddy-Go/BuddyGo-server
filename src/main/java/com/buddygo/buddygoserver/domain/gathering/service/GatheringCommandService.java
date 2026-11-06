@@ -130,7 +130,11 @@ public class GatheringCommandService {
         // TODO 호스트 매너온도 하락(마감 후 취소가 더 크게, 점수 미정) · 확정 참가자에게 사유 알림 · 자동 거절 알림
     }
 
-    /** 호스트만, 취소되지 않았고 아직 시작 전인 모임에 할 수 있는 수정·삭제·취소의 공통 검사 */
+    /**
+     * 호스트만, 취소되지 않았고 아직 시작 전인 모임에 할 수 있는 수정·삭제·취소의 공통 검사.
+     * 데드라인이 지난 모집중 모임은 스케줄러가 아직 돌지 않았어도 정원 미달 자동 취소 대상이라 막는다.
+     * 그렇지 않으면 시작을 미뤄 자동 취소를 피하거나, 페널티 없는 인원 미달 취소가 호스트 취소로 남는다.
+     */
     private Gathering lockForHostAction(Long gatheringId, Long userId, Instant now) {
         Gathering gathering = gatheringRepository.findActiveByIdForUpdate(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
@@ -142,6 +146,9 @@ public class GatheringCommandService {
         }
         if (gathering.hasStarted(now)) {
             throw new CustomException(GatheringErrorType.ALREADY_STARTED);
+        }
+        if (gathering.isUnfilledAtDeadline(now, gatheringProperties.deadlineOf(gathering.getStartAt()))) {
+            throw new CustomException(GatheringErrorType.DEADLINE_PASSED_UNFILLED);
         }
         return gathering;
     }
