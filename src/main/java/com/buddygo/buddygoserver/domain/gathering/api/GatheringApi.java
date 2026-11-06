@@ -67,7 +67,7 @@ public interface GatheringApi {
             @ApiResponse(responseCode = "400", description = "G002 입력값 · GA010 · GA011 · GA012 · GA013 · GA014"),
             @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
             @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임"),
-            @ApiResponse(responseCode = "409", description = "GA005 잠긴 항목 수정 · GA008 이미 시작 · GA009 이미 취소")
+            @ApiResponse(responseCode = "409", description = "GA005 잠긴 항목 수정 · GA008 이미 시작 · GA009 이미 취소 · GA015 데드라인 지난 정원 미달")
     })
     @PatchMapping("/{gatheringId}")
     ResponseEntity<SuccessResponse<GatheringDetailResponse>> update(
@@ -78,7 +78,7 @@ public interface GatheringApi {
             @ApiResponse(responseCode = "200", description = "삭제 성공"),
             @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
             @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임"),
-            @ApiResponse(responseCode = "409", description = "GA004 확정 참가자 있음(취소를 사용) · GA008 이미 시작 · GA009 이미 취소")
+            @ApiResponse(responseCode = "409", description = "GA004 확정 참가자 있음(취소를 사용) · GA008 이미 시작 · GA009 이미 취소 · GA015 데드라인 지난 정원 미달")
     })
     @DeleteMapping("/{gatheringId}")
     ResponseEntity<SuccessResponse<Void>> delete(@LoginUserId Long userId, @PathVariable Long gatheringId);
@@ -90,7 +90,7 @@ public interface GatheringApi {
             @ApiResponse(responseCode = "400", description = "G002 사유 누락·100자 초과"),
             @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
             @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임"),
-            @ApiResponse(responseCode = "409", description = "GA007 확정 참가자 없음(삭제를 사용) · GA008 이미 시작 · GA009 이미 취소")
+            @ApiResponse(responseCode = "409", description = "GA007 확정 참가자 없음(삭제를 사용) · GA008 이미 시작 · GA009 이미 취소 · GA015 데드라인 지난 정원 미달")
     })
     @PostMapping("/{gatheringId}/cancel")
     ResponseEntity<SuccessResponse<Void>> cancel(

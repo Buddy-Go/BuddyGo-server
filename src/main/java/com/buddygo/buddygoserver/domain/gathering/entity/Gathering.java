@@ -103,6 +103,11 @@ public class Gathering extends BaseEntity {
         return status == GatheringStatus.RECRUITING && now.isBefore(deadline);
     }
 
+    /** 데드라인이 지났는데 아직 모집중(정원 미달 자동 취소 대상)인지. 스케줄러가 돌기 전에도 그렇게 본다. */
+    public boolean isUnfilledAtDeadline(Instant now, Instant deadline) {
+        return status == GatheringStatus.RECRUITING && !now.isBefore(deadline);
+    }
+
     public boolean isCanceled() {
         return status == GatheringStatus.CANCELED;
     }

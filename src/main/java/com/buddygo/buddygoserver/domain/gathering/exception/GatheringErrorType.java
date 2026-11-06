@@ -26,6 +26,7 @@ public enum GatheringErrorType implements BaseErrorType {
     INVALID_DURATION(HttpStatus.BAD_REQUEST, "GA012", "진행 시간이 허용 범위를 벗어났습니다."),
     GENDER_RULE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "GA013", "호스트 성별과 다른 성별 조건은 고를 수 없습니다."),
     INVALID_START_TIME(HttpStatus.BAD_REQUEST, "GA014", "시작 시각 단위가 맞지 않습니다."),
+    DEADLINE_PASSED_UNFILLED(HttpStatus.CONFLICT, "GA015", "데드라인까지 정원이 차지 않아 자동 취소되는 모임입니다."),
     ;
 
     private final HttpStatus status;
