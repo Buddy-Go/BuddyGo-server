@@ -2,6 +2,7 @@ package com.buddygo.buddygoserver.domain.sport.gym.service;
 
 import com.buddygo.buddygoserver.domain.sport.gym.dto.request.GymRecordRequest;
 import com.buddygo.buddygoserver.domain.sport.gym.dto.request.GymRecordsRequest;
+import com.buddygo.buddygoserver.domain.sport.gym.criteria.GymCriteria;
 import com.buddygo.buddygoserver.domain.sport.gym.dto.response.GymProfileResponse;
 import com.buddygo.buddygoserver.domain.sport.gym.entity.UserGymRecord;
 import com.buddygo.buddygoserver.domain.sport.gym.enums.BodyPart;
@@ -26,6 +27,7 @@ public class GymRecordCommandService {
 
     private final UserRepository userRepository;
     private final UserGymRecordRepository userGymRecordRepository;
+    private final GymCriteria gymCriteria;
 
     /**
      * 보낸 부위로 기록 전체를 바꾼다. 같은 키를 지웠다 다시 넣지 않고
@@ -51,6 +53,6 @@ public class GymRecordCommandService {
             result.add(record);
         }
         userGymRecordRepository.deleteAll(existing.values());
-        return GymProfileResponse.from(result);
+        return GymProfileResponse.from(result, gymCriteria);
     }
 }

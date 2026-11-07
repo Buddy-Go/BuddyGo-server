@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -97,6 +98,22 @@ class GymRecordIntegrationTest extends IntegrationTest {
                     .andExpect(jsonPath("$.data.records[0].recordValue").value(80))
                     .andExpect(jsonPath("$.data.records[1].recorded").value(true))
                     .andExpect(jsonPath("$.data.records[4].armLevel").value("INTERMEDIATE"));
+        }
+
+        @Test
+        void 기록이_있는_중량_횟수_부위는_탐색_기준_범위_초깃값을_준다() throws Exception {
+            putRecords("""
+                    {"records": [
+                      {"bodyPart": "CHEST", "recordValue": 80},
+                      {"bodyPart": "BACK", "recordValue": 1},
+                      {"bodyPart": "ARM", "armLevel": "INTERMEDIATE"}
+                    ]}""")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.searchRanges[*].bodyPart").value(contains("CHEST", "BACK")))
+                    .andExpect(jsonPath("$.data.searchRanges[0].minValue").value(70))
+                    .andExpect(jsonPath("$.data.searchRanges[0].maxValue").value(90))
+                    .andExpect(jsonPath("$.data.searchRanges[1].minValue").value(0))
+                    .andExpect(jsonPath("$.data.searchRanges[1].maxValue").value(3));
         }
 
         @Test
