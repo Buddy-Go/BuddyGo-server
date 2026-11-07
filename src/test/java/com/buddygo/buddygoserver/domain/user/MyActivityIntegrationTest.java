@@ -100,7 +100,7 @@ class MyActivityIntegrationTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = ParticipationStatus.class, names = {"REJECTED", "CANCELED", "LEFT"})
+    @EnumSource(value = ParticipationStatus.class, names = {"REJECTED", "LEFT"})
     void 거절_취소_나가기는_보이지_않는다(ParticipationStatus state) throws Exception {
         participate(gathering(other, NOW.plusSeconds(7200)), me, state);
         Gathering ended = gathering(other, NOW.minusSeconds(7200));

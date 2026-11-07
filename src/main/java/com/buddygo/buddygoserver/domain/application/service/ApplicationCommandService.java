@@ -82,7 +82,7 @@ public class ApplicationCommandService {
         if (!application.isPending()) {
             throw new CustomException(ApplicationErrorType.NOT_PENDING);
         }
-        application.cancel();
+        participationRepository.deleteWithChildren(application.getId());
     }
 
     /**

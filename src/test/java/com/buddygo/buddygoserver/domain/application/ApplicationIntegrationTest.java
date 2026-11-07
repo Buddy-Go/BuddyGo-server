@@ -250,15 +250,27 @@ class ApplicationIntegrationTest {
     class 신청_취소 {
 
         @Test
-        void 대기_중인_신청을_취소하고_다시_신청할_수_있다() throws Exception {
+        void 대기_중인_신청을_취소하면_신청과_스냅샷이_지워지고_다시_신청할_수_있다() throws Exception {
             Gathering gathering = gathering(START, 3);
-            apply(alice, gathering, "{}").andExpect(status().isCreated());
+            gymParts(gathering, BodyPart.CHEST);
+            apply(alice, gathering, """
+                    {"gymRecords": [{"bodyPart": "CHEST", "recordValue": 80}]}""").andExpect(status().isCreated());
+            flushAndClear();
+            long applicationId = participationRepository.findActive(gathering.getId(), alice.getId()).orElseThrow().getId();
+            assertThat(snapshotCount(applicationId)).isEqualTo(1);
 
             cancelMine(alice, gathering).andExpect(status().isOk());
             flushAndClear();
-            assertThat(participationRepository.findActive(gathering.getId(), alice.getId())).isEmpty();
+            assertThat(participationRepository.findById(applicationId)).isEmpty();
+            assertThat(snapshotCount(applicationId)).isZero();
 
             apply(alice, gathering, "{}").andExpect(status().isCreated());
+        }
+
+        private long snapshotCount(long applicationId) {
+            return ((Number) entityManager.createNativeQuery(
+                            "SELECT count(*) FROM participation_gym_records WHERE participation_id = ?1")
+                    .setParameter(1, applicationId).getSingleResult()).longValue();
         }
 
         @Test
