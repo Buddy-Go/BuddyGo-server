@@ -167,7 +167,8 @@ public class GatheringSearchRepository {
             w.and("g.gender_rule = :gender", "gender", c.gender().name());
         }
         if (c.minManner() != null) {
-            w.and("h.manner_temperature >= :minManner", "minManner", c.minManner());
+            // 저장은 소수 2자리지만 화면에는 1자리로 반올림해 보이므로 보이는 값으로 비교한다
+            w.and("ROUND(h.manner_temperature, 1) >= :minManner", "minManner", c.minManner());
         }
         if (c.likedBy() != null) {
             w.and("EXISTS (SELECT 1 FROM gathering_likes l WHERE l.gathering_id = g.id AND l.user_id = :likedBy)",

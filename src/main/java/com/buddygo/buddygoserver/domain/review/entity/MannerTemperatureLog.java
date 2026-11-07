@@ -1,6 +1,7 @@
 package com.buddygo.buddygoserver.domain.review.entity;
 
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
+import com.buddygo.buddygoserver.domain.review.enums.MannerTemperatureReason;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.global.entity.BaseCreatedEntity;
 import jakarta.persistence.*;
@@ -27,7 +28,7 @@ public class MannerTemperatureLog extends BaseCreatedEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, precision = 4, scale = 1)
+    @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal delta;
 
     @Column(nullable = false)
@@ -42,4 +43,14 @@ public class MannerTemperatureLog extends BaseCreatedEntity {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "review_id", unique = true)
     private Review review;
+
+    /** 평가 한 건이 남긴 변화. 변화량이 0 이어도 남겨 평가마다 이력이 하나씩 있게 한다. */
+    public static MannerTemperatureLog ofReview(User user, BigDecimal delta, Review review) {
+        return MannerTemperatureLog.builder()
+                .user(user)
+                .delta(delta)
+                .reason(MannerTemperatureReason.REVIEW.name())
+                .review(review)
+                .build();
+    }
 }

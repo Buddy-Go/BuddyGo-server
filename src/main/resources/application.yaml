@@ -59,6 +59,22 @@ check-in:
 review:
   # 평가 기한: 모임 종료 후 이 기간 안에만 평가할 수 있다
   deadline-after-end: 3d
+  # 평가 한 건의 점수 = 판정 기본 점수 + 긍정 태그 수 × positive-tag + 부정 태그 수 × negative-tag (규칙 정의서 11장, 값은 임시)
+  # 태그 점수는 판정과 상관없이 태그 성격대로 더하되, 좋음은 0 아래로·아쉬움은 0 위로 가지 않게 자른다(보통은 태그대로).
+  # 실제 온도 변화는 이 점수에 곡선(manner-temperature)을 적용한 값이다.
+  score:
+    good: 0.5
+    normal: 0
+    bad: -0.5
+    positive-tag: 0.1
+    negative-tag: -0.1
+
+manner-temperature:
+  # 시작값이자 곡선의 기준점. users.manner_temperature 의 기본값(36.5)과 같아야 한다.
+  neutral: 36.5
+  # 오를 때는 (max - 현재) / (max - neutral), 내릴 때는 현재 / neutral 을 곱한다(둘 다 1 이 넘지 않게 자름).
+  # 그래서 max 에 가까울수록 덜 오르고 0 에 가까울수록 덜 내려가며, max 와 0 에는 닿지 않는다.
+  max: 100
 
 scheduler:
   # 테스트에서는 build.gradle 이 false 로 끈다(공유 로컬 DB 를 건드리지 않도록)

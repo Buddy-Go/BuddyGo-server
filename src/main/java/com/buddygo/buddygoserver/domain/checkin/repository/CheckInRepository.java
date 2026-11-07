@@ -39,6 +39,28 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
                 WHERE pa.user_id = :userId)""")
     boolean workedOutTogether(Long userId, Long otherId);
 
+    interface Attendee {
+        Long getUserId();
+
+        String getNickname();
+
+        boolean getHost();
+    }
+
+    /**
+     * 모임에서 체크인(정상·지각)한 사람(호스트 포함). 평가는 이 사람들끼리 서로 한다. 호스트가 먼저, 나머지는 확정 순.
+     * 모임이 실제로 진행됐는지(진행중·종료)는 부르는 쪽이 모임 상태로 판단한다.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT u.id AS userId, u.nickname AS nickname, (u.id = g.host_id) AS host
+            FROM participations p
+            JOIN check_ins c ON c.participation_id = p.id AND c.attendance IN ('ON_TIME', 'LATE')
+            JOIN gatherings g ON g.id = p.gathering_id
+            JOIN users u ON u.id = p.user_id
+            WHERE p.gathering_id = :gatheringId
+            ORDER BY (u.id = g.host_id) DESC, p.decided_at, p.id""")
+    List<Attendee> findAttendees(Long gatheringId);
+
     interface WorkoutPartner {
         Long getUserId();
 
