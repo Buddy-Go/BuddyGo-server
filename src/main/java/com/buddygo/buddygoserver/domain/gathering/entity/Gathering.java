@@ -95,6 +95,14 @@ public class Gathering extends BaseEntity {
         return status == GatheringStatus.IN_PROGRESS || status == GatheringStatus.FINISHED || !now.isBefore(startAt);
     }
 
+    /**
+     * 실제로 진행되고 끝났는지(평가할 수 있는 모임). 종료 처리가 늦어 아직 진행중이어도 종료 시각이 지났으면 끝난 것으로 본다.
+     * 체크인 뒤 취소된 모임은 진행되지 않았으므로 빠진다.
+     */
+    public boolean hasEnded(Instant now) {
+        return (status == GatheringStatus.IN_PROGRESS || status == GatheringStatus.FINISHED) && !now.isBefore(endAt);
+    }
+
     /** 신청·수락을 받는지. 모집중이어도 데드라인이 지났으면(정원 미달 자동 취소 대상) 받지 않는다. */
     public boolean isRecruiting(Instant now, Instant deadline) {
         return status == GatheringStatus.RECRUITING && now.isBefore(deadline);
