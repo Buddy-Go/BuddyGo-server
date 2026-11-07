@@ -8,6 +8,7 @@ import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailRe
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse.CancellationResponse;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse.MemberResponse;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse.ViewerResponse;
+import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringParticipantResponse;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
 import com.buddygo.buddygoserver.domain.gathering.entity.GatheringLikeId;
 import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
@@ -51,13 +52,10 @@ public class GatheringQueryService {
         Gathering gathering = gatheringRepository.findWithHostAndPlace(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
         Long hostId = gathering.getHost().getId();
-        boolean isHost = hostId.equals(viewerId);
+        boolean isHost = gathering.isHostedBy(viewerId);
 
-        Optional<Participation> mine = isHost ? Optional.empty()
-                : participationRepository.findActive(gatheringId, viewerId);
-        ViewerRole role = isHost ? ViewerRole.HOST
-                : mine.map(p -> p.getStatus() == ParticipationStatus.CONFIRMED ? ViewerRole.PARTICIPANT : ViewerRole.APPLICANT)
-                .orElse(ViewerRole.NONE);
+        Optional<Participation> mine = activeParticipation(gathering, viewerId);
+        ViewerRole role = roleOf(isHost, mine);
         ViewerResponse viewer = new ViewerResponse(role, mine.map(Participation::getId).orElse(null),
                 gatheringLikeRepository.existsById(new GatheringLikeId(viewerId, gatheringId)));
 
@@ -79,6 +77,34 @@ public class GatheringQueryService {
                 participationRepository.countByGatheringIdAndStatus(gatheringId, ParticipationStatus.CONFIRMED),
                 isHost ? participationRepository.countByGatheringIdAndStatus(gatheringId, ParticipationStatus.PENDING) : null,
                 reviewRepository.countByTargetId(hostId), gym, viewer, members, cancellation);
+    }
+
+    /** 상세 화면의 members 와 같은 공개 규칙을 쓰는 확정 명단 전용 조회. */
+    public List<GatheringParticipantResponse> getParticipants(Long gatheringId, Long viewerId) {
+        // 호스트 id 만 쓰므로 장소·호스트를 함께 읽지 않는다
+        Gathering gathering = gatheringRepository.findById(gatheringId)
+                .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
+        boolean isHost = gathering.isHostedBy(viewerId);
+        if (!canSeeMembers(gathering, roleOf(isHost, activeParticipation(gathering, viewerId)))) {
+            throw new CustomException(GatheringErrorType.PARTICIPANTS_NOT_VISIBLE);
+        }
+        Long hostId = gathering.getHost().getId();
+        return participationRepository.findConfirmedWithUser(gatheringId).stream()
+                .map(p -> GatheringParticipantResponse.of(p, hostId))
+                .toList();
+    }
+
+    /** 보는 사람의 진행 중인 신청·참여(대기·확정). 호스트 본인은 신청자로 보지 않는다. */
+    private Optional<Participation> activeParticipation(Gathering gathering, Long viewerId) {
+        return gathering.isHostedBy(viewerId) ? Optional.empty()
+                : participationRepository.findActive(gathering.getId(), viewerId);
+    }
+
+    private static ViewerRole roleOf(boolean isHost, Optional<Participation> mine) {
+        if (isHost) {
+            return ViewerRole.HOST;
+        }
+        return mine.map(p -> p.isConfirmed() ? ViewerRole.PARTICIPANT : ViewerRole.APPLICANT).orElse(ViewerRole.NONE);
     }
 
     private static boolean canSeeMembers(Gathering gathering, ViewerRole role) {
