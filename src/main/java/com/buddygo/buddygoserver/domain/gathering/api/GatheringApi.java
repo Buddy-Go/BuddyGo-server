@@ -4,7 +4,7 @@ import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCancelReq
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
-import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse.MemberResponse;
+import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringParticipantResponse;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import com.buddygo.buddygoserver.global.security.LoginUserId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,7 +65,7 @@ public interface GatheringApi {
     @Operation(summary = "모임 상세",
             description = """
                     보는 사람에 따라 내용이 다르다(viewer.role: HOST / PARTICIPANT / APPLICANT / NONE).
-                    - members: 호스트는 항상, 확정 참가자는 마감(CLOSED) 이후에만, 그 외에는 null
+                    - members: 호스트는 항상, 확정 참가자는 마감(CLOSED) 이후에만, 그 외에는 null. 호스트가 먼저, 나머지는 확정 시각순
                     - pendingCount: 대기 중인 신청 수. 호스트에게만
                     - gym.match: 내 기록과 모임 기준의 일치 판정. 호스트 본인에게는 null
                     - cancellation.reason: 호스트·확정 참가자에게만""")
@@ -88,7 +88,7 @@ public interface GatheringApi {
             @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임")
     })
     @GetMapping("/{gatheringId}/participants")
-    ResponseEntity<SuccessResponse<List<MemberResponse>>> getParticipants(
+    ResponseEntity<SuccessResponse<List<GatheringParticipantResponse>>> getParticipants(
             @LoginUserId Long userId, @PathVariable Long gatheringId);
 
     @Operation(summary = "모임 수정",

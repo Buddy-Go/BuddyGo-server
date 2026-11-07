@@ -5,7 +5,7 @@ import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCancelReq
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
-import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse.MemberResponse;
+import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringParticipantResponse;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringCommandService;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringQueryService;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringLikeCommandService;
@@ -49,7 +49,7 @@ public class GatheringController implements GatheringApi {
     }
 
     @Override
-    public ResponseEntity<SuccessResponse<List<MemberResponse>>> getParticipants(Long userId, Long gatheringId) {
+    public ResponseEntity<SuccessResponse<List<GatheringParticipantResponse>>> getParticipants(Long userId, Long gatheringId) {
         return ResponseEntity.ok(SuccessResponse.from(gatheringQueryService.getParticipants(gatheringId, userId)));
     }
 
