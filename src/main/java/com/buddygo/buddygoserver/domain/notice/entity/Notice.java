@@ -35,4 +35,10 @@ public class Notice extends BaseCreatedEntity {
     /** '수정됨' 표시용 */
     @Column(name = "edited_at")
     private Instant editedAt;
+
+    public void edit(String title, String content, Instant now) {
+        if (title != null) { this.title = title.strip(); }
+        if (content != null) { this.content = content.strip(); }
+        this.editedAt = now;
+    }
 }
