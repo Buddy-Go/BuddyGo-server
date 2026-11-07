@@ -5,6 +5,8 @@ import com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus;
 import com.buddygo.buddygoserver.domain.application.enums.RejectReason;
 import com.buddygo.buddygoserver.domain.application.repository.ParticipationRepository;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
+import com.buddygo.buddygoserver.domain.gathering.entity.GatheringLikeId;
+import com.buddygo.buddygoserver.domain.gathering.repository.GatheringLikeRepository;
 import com.buddygo.buddygoserver.domain.gathering.entity.Place;
 import com.buddygo.buddygoserver.domain.gathering.enums.CancellationType;
 import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
@@ -58,6 +60,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -91,6 +94,7 @@ class GatheringIntegrationTest {
     @Autowired ReviewRepository reviewRepository;
     @Autowired JwtTokenProvider jwtTokenProvider;
     @Autowired EntityManager entityManager;
+    @Autowired GatheringLikeRepository gatheringLikeRepository;
 
     User host;
     User member;
@@ -564,6 +568,78 @@ class GatheringIntegrationTest {
             assertThat(gatheringCancellationRepository.findById(id).orElseThrow().getType())
                     .isEqualTo(CancellationType.HOST);
         }
+    }
+
+    @Nested
+    class 찜 {
+
+        @Test
+        void 반복해서_찜해도_한_건만_저장된다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            like(member, id).andExpect(status().isOk()).andExpect(jsonPath("$.code").value(200));
+            flushAndClear();
+            like(member, id).andExpect(status().isOk());
+            flushAndClear();
+            assertThat(gatheringLikeRepository.existsById(new GatheringLikeId(member.getId(), id))).isTrue();
+            detail(member, id).andExpect(jsonPath("$.data.viewer.liked").value(true));
+            detail(other, id).andExpect(jsonPath("$.data.viewer.liked").value(false));
+            assertThat(gatheringLikeRepository.findAll().stream()
+                    .filter(like -> like.getId().getGatheringId().equals(id)).count()).isEqualTo(1);
+        }
+
+        @Test
+        void 내_찜만_해제되고_반복_해제와_재찜도_가능하다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            like(member, id).andExpect(status().isOk());
+            like(other, id).andExpect(status().isOk());
+            unlike(member, id).andExpect(status().isOk());
+            flushAndClear();
+            unlike(member, id).andExpect(status().isOk());
+            assertThat(gatheringLikeRepository.existsById(new GatheringLikeId(member.getId(), id))).isFalse();
+            detail(member, id).andExpect(jsonPath("$.data.viewer.liked").value(false));
+            assertThat(gatheringLikeRepository.existsById(new GatheringLikeId(other.getId(), id))).isTrue();
+            like(member, id).andExpect(status().isOk());
+            flushAndClear();
+            assertThat(gatheringLikeRepository.existsById(new GatheringLikeId(member.getId(), id))).isTrue();
+        }
+
+        @Test
+        void 찜하지_않은_모임의_해제도_성공한다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            unlike(member, id).andExpect(status().isOk());
+        }
+
+        @Test
+        void 없는_모임은_404() throws Exception {
+            like(member, Long.MAX_VALUE).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("GA001"));
+            unlike(member, Long.MAX_VALUE).andExpect(status().isNotFound());
+        }
+
+        @Test
+        void 삭제된_모임은_404() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            like(member, id).andExpect(status().isOk());
+            deleteGathering(host, id).andExpect(status().isOk());
+            like(member, id).andExpect(status().isNotFound());
+            unlike(member, id).andExpect(status().isNotFound());
+        }
+
+        @Test
+        void 로그인하지_않으면_401() throws Exception {
+            mockMvc.perform(put("/api/gatherings/1/like")).andExpect(status().isUnauthorized());
+            mockMvc.perform(delete("/api/gatherings/1/like")).andExpect(status().isUnauthorized());
+        }
+    }
+
+    private ResultActions like(User user, long id) throws Exception {
+        return mockMvc.perform(put("/api/gatherings/{id}/like", id)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
+
+    private ResultActions unlike(User user, long id) throws Exception {
+        return mockMvc.perform(delete("/api/gatherings/{id}/like", id)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user)));
     }
 
     // ───────── helpers ─────────

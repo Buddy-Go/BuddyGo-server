@@ -17,13 +17,30 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-@Tag(name = "gathering", description = "모임 개설 · 상세 · 수정 · 삭제 · 취소")
+@Tag(name = "gathering", description = "모임 개설 · 상세 · 수정 · 삭제 · 취소 · 찜")
 @ApiResponses(@ApiResponse(responseCode = "401", description = "G004 토큰 없음 · A002 유효하지 않음 · A003 만료"))
 @RequestMapping("/api/gatherings")
 public interface GatheringApi {
+
+    @Operation(summary = "모임 찜하기", description = "로그인한 사용자의 찜을 저장한다. 이미 찜한 모임도 성공하며 알림은 보내지 않는다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "찜 성공(이미 찜한 경우 포함)"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임 · U001 없는 사용자")
+    })
+    @PutMapping("/{gatheringId}/like")
+    ResponseEntity<SuccessResponse<Void>> like(@LoginUserId Long userId, @PathVariable Long gatheringId);
+
+    @Operation(summary = "모임 찜 해제", description = "로그인한 사용자의 찜만 해제한다. 찜하지 않은 모임도 성공한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "해제 성공(찜이 없는 경우 포함)"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임")
+    })
+    @DeleteMapping("/{gatheringId}/like")
+    ResponseEntity<SuccessResponse<Void>> unlike(@LoginUserId Long userId, @PathVariable Long gatheringId);
 
     @Operation(summary = "모임 개설",
             description = """
