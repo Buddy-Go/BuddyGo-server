@@ -27,6 +27,9 @@ public enum GatheringErrorType implements BaseErrorType {
     GENDER_RULE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "GA013", "호스트 성별과 다른 성별 조건은 고를 수 없습니다."),
     INVALID_START_TIME(HttpStatus.BAD_REQUEST, "GA014", "시작 시각 단위가 맞지 않습니다."),
     DEADLINE_PASSED_UNFILLED(HttpStatus.CONFLICT, "GA015", "데드라인까지 정원이 차지 않아 자동 취소되는 모임입니다."),
+    INVALID_SEARCH_AREA(HttpStatus.BAD_REQUEST, "GA016", "검색 영역은 지도 범위(swLat·swLng·neLat·neLng)와 구·동(regionCode) 중 하나만 보내거나, 핀을 눌렀으면 parcelKey 로 지정해야 합니다."),
+    INVALID_SEARCH_CONDITION(HttpStatus.BAD_REQUEST, "GA017", "검색 조건 조합이 올바르지 않습니다."),
+    INVALID_SEARCH_CURSOR(HttpStatus.BAD_REQUEST, "GA018", "커서가 올바르지 않습니다. 첫 페이지부터 다시 불러와 주세요."),
     ;
 
     private final HttpStatus status;
