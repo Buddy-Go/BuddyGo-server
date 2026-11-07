@@ -5,6 +5,7 @@ import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCancelReq
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
+import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse.MemberResponse;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringCommandService;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringQueryService;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringLikeCommandService;
@@ -13,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -43,6 +46,11 @@ public class GatheringController implements GatheringApi {
     @Override
     public ResponseEntity<SuccessResponse<GatheringDetailResponse>> getDetail(Long userId, Long gatheringId) {
         return ResponseEntity.ok(SuccessResponse.from(gatheringQueryService.getDetail(gatheringId, userId)));
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<List<MemberResponse>>> getParticipants(Long userId, Long gatheringId) {
+        return ResponseEntity.ok(SuccessResponse.from(gatheringQueryService.getParticipants(gatheringId, userId)));
     }
 
     @Override

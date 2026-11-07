@@ -4,6 +4,7 @@ import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCancelReq
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringCreateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateRequest;
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
+import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse.MemberResponse;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import com.buddygo.buddygoserver.global.security.LoginUserId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,7 +22,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-@Tag(name = "gathering", description = "모임 개설 · 상세 · 수정 · 삭제 · 취소 · 찜")
+import java.util.List;
+
+@Tag(name = "gathering", description = "모임 개설 · 상세 · 수정 · 삭제 · 취소 · 찜 · 확정 명단")
 @ApiResponses(@ApiResponse(responseCode = "401", description = "G004 토큰 없음 · A002 유효하지 않음 · A003 만료"))
 @RequestMapping("/api/gatherings")
 public interface GatheringApi {
@@ -72,6 +75,20 @@ public interface GatheringApi {
     })
     @GetMapping("/{gatheringId}")
     ResponseEntity<SuccessResponse<GatheringDetailResponse>> getDetail(
+            @LoginUserId Long userId, @PathVariable Long gatheringId);
+
+    @Operation(summary = "확정 명단 조회", description = """
+            호스트는 모든 상태에서, 확정 참가자는 마감(CLOSED)·진행중·종료 상태에서만 조회할 수 있다.
+            모집중으로 다시 열리거나 취소되면 참가자의 조회 권한은 사라진다. 삭제된 모임은 조회할 수 없다.
+            호스트를 포함한 현재 CONFIRMED 참여만 반환한다. 호스트가 먼저, 나머지는 확정 시각·참여 ID 순이다.
+            data는 userId·nickname·mannerTemperature·host를 담은 배열이며, 대기 신청·연락처·운동 기록은 노출하지 않는다.""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "GA006 확정 명단 조회 권한 없음"),
+            @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임")
+    })
+    @GetMapping("/{gatheringId}/participants")
+    ResponseEntity<SuccessResponse<List<MemberResponse>>> getParticipants(
             @LoginUserId Long userId, @PathVariable Long gatheringId);
 
     @Operation(summary = "모임 수정",
