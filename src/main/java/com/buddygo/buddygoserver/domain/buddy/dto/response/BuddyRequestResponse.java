@@ -13,4 +13,9 @@ public record BuddyRequestResponse(
     public static BuddyRequestResponse from(BuddyRequest request) {
         return new BuddyRequestResponse(request.getId(), request.getStatus());
     }
+
+    /** 수락·취소처럼 신청 행을 지운 뒤 처리 결과를 돌려줄 때 */
+    public static BuddyRequestResponse of(Long requestId, BuddyRequestStatus status) {
+        return new BuddyRequestResponse(requestId, status);
+    }
 }

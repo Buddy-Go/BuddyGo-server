@@ -59,21 +59,9 @@ public class BuddyRequest extends BaseCreatedEntity {
         return receiver.getId().equals(userId);
     }
 
-    public void accept(Instant now) {
-        respond(BuddyRequestStatus.ACCEPTED, now);
-    }
-
+    /** 거절은 행을 남긴다. 수락·취소는 서비스가 행을 지운다. */
     public void reject(Instant now) {
-        respond(BuddyRequestStatus.REJECTED, now);
-    }
-
-    /** 보낸 사람이 대기 중인 신청을 거둔다. */
-    public void cancel(Instant now) {
-        respond(BuddyRequestStatus.CANCELED, now);
-    }
-
-    private void respond(BuddyRequestStatus status, Instant now) {
-        this.status = status;
+        this.status = BuddyRequestStatus.REJECTED;
         this.respondedAt = now;
     }
 }
