@@ -1,8 +1,8 @@
 package com.buddygo.buddygoserver.global.time;
 
+import com.buddygo.buddygoserver.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
@@ -11,8 +11,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** 응답의 시각은 UTC ISO-8601 문자열(…Z)로 나간다는 앱과의 약속 */
-@SpringBootTest
-class InstantJsonFormatTest {
+class InstantJsonFormatTest extends IntegrationTest {
 
     @Autowired JsonMapper jsonMapper;
 

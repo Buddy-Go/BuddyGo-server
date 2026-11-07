@@ -1,10 +1,9 @@
 package com.buddygo.buddygoserver;
 
+import com.buddygo.buddygoserver.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class BuddygoServerApplicationTests {
+class BuddygoServerApplicationTests extends IntegrationTest {
 
     @Test
     void contextLoads() {

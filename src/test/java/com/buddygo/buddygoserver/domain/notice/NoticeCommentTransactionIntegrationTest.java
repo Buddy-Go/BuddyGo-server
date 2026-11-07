@@ -16,6 +16,7 @@ import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider;
+import com.buddygo.buddygoserver.support.IntegrationTest;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,9 +25,6 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,6 +33,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -47,10 +46,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** 요청마다 실제 커밋한다. 테스트가 만든 모임·사용자만 정리한다. */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(NoticeCommentIntegrationTest.FixedClockConfig.class)
-class NoticeCommentTransactionIntegrationTest {
+class NoticeCommentTransactionIntegrationTest extends IntegrationTest {
+    @Override
+    protected Instant fixedNow() {
+        return NOW;
+    }
+
     @Autowired MockMvc mvc;
     @Autowired JwtTokenProvider tokens;
     @Autowired NoticeCommentCommandService commands;

@@ -17,6 +17,7 @@ import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider;
+import com.buddygo.buddygoserver.support.IntegrationTest;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,12 +29,6 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -41,28 +36,22 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** 로컬 PostgreSQL·Redis에서 실행. 테스트 데이터는 매번 롤백한다. */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(NoticeIntegrationTest.FixedClockConfig.class)
 @Transactional
-class NoticeIntegrationTest {
+class NoticeIntegrationTest extends IntegrationTest {
     static final Instant NOW = Instant.parse("2026-11-10T00:00:00Z");
-    @TestConfiguration
-    static class FixedClockConfig {
-        @Bean @Primary
-        Clock fixedClock() { return Clock.fixed(NOW, ZoneOffset.UTC); }
-    }
 
+    @Override
+    protected Instant fixedNow() {
+        return NOW;
+    }
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired GatheringRepository gatherings;

@@ -15,6 +15,7 @@ import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider;
+import com.buddygo.buddygoserver.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,41 +26,29 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 로컬 PostgreSQL 필요. 테스트 데이터는 롤백하며 시간 경계는 고정한다. */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(MyActivityIntegrationTest.FixedClockConfig.class)
 @Transactional
-class MyActivityIntegrationTest {
+class MyActivityIntegrationTest extends IntegrationTest {
 
     static final Instant NOW = Instant.parse("2026-11-10T00:00:00Z");
-    static final String URL = "/api/users/me/gatherings";
 
-    @TestConfiguration
-    static class FixedClockConfig {
-        @Bean @Primary
-        Clock fixedClock() { return Clock.fixed(NOW, ZoneOffset.UTC); }
+    @Override
+    protected Instant fixedNow() {
+        return NOW;
     }
+    static final String URL = "/api/users/me/gatherings";
 
     @Autowired MockMvc mockMvc;
     @Autowired UserRepository userRepository;
