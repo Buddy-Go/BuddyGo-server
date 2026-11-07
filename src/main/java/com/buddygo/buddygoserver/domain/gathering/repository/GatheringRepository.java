@@ -21,6 +21,9 @@ public interface GatheringRepository extends JpaRepository<Gathering, Long> {
             where g.id = :id and g.deletedAt is null""")
     Optional<Gathering> findActiveWithHostAndPlace(Long id);
 
+    @Query("select count(g) > 0 from Gathering g where g.id = :id and g.deletedAt is null")
+    boolean existsActiveById(Long id);
+
     /**
      * 확정 인원을 읽고 그 결과로 수정·삭제·취소하므로 모임 행을 잠근다.
      * 신청 수락도 같은 행을 잠가야 확정 인원 판단이 어긋나지 않는다.
