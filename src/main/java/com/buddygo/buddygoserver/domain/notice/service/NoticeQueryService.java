@@ -1,10 +1,7 @@
 package com.buddygo.buddygoserver.domain.notice.service;
 
-import com.buddygo.buddygoserver.domain.notice.dto.response.CommentListResponse;
-import com.buddygo.buddygoserver.domain.notice.dto.response.CommentResponse;
 import com.buddygo.buddygoserver.domain.notice.dto.response.NoticeListResponse;
 import com.buddygo.buddygoserver.domain.notice.dto.response.NoticeResponse;
-import com.buddygo.buddygoserver.domain.notice.repository.NoticeCommentRepository;
 import com.buddygo.buddygoserver.domain.notice.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class NoticeQueryService {
     private final NoticeAccess access;
     private final NoticeRepository noticeRepository;
-    private final NoticeCommentRepository commentRepository;
 
     public NoticeListResponse list(Long userId, Long gatheringId, int page, int size) {
         access.read(userId, gatheringId);
@@ -32,11 +28,4 @@ public class NoticeQueryService {
         return NoticeResponse.from(access.notice(gatheringId, noticeId));
     }
 
-    public CommentListResponse comments(Long userId, Long gatheringId, Long noticeId, int page, int size) {
-        access.read(userId, gatheringId);
-        access.notice(gatheringId, noticeId);
-        var comments = commentRepository.findByNoticeId(noticeId,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "createdAt", "id")));
-        return new CommentListResponse(comments.map(CommentResponse::from).getContent(), page, size, comments.hasNext());
-    }
 }

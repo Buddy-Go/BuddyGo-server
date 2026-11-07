@@ -1,11 +1,8 @@
 package com.buddygo.buddygoserver.domain.notice.controller;
 
 import com.buddygo.buddygoserver.domain.notice.api.NoticeApi;
-import com.buddygo.buddygoserver.domain.notice.dto.request.CommentCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.dto.request.NoticeCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.dto.request.NoticeUpdateRequest;
-import com.buddygo.buddygoserver.domain.notice.dto.response.CommentListResponse;
-import com.buddygo.buddygoserver.domain.notice.dto.response.CommentResponse;
 import com.buddygo.buddygoserver.domain.notice.dto.response.NoticeListResponse;
 import com.buddygo.buddygoserver.domain.notice.dto.response.NoticeResponse;
 import com.buddygo.buddygoserver.domain.notice.service.NoticeCommandService;
@@ -41,19 +38,6 @@ public class NoticeController implements NoticeApi {
     @Override
     public ResponseEntity<SuccessResponse<Void>> delete(Long userId, Long gatheringId, Long noticeId) {
         commandService.delete(userId, gatheringId, noticeId);
-        return ResponseEntity.ok(SuccessResponse.ok());
-    }
-    @Override
-    public ResponseEntity<SuccessResponse<CommentListResponse>> comments(Long userId, Long gatheringId, Long noticeId, int page, int size) {
-        return ResponseEntity.ok(SuccessResponse.from(queryService.comments(userId, gatheringId, noticeId, page, size)));
-    }
-    @Override
-    public ResponseEntity<SuccessResponse<CommentResponse>> comment(Long userId, Long gatheringId, Long noticeId, CommentCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(SuccessResponse.created(commandService.comment(userId, gatheringId, noticeId, request)));
-    }
-    @Override
-    public ResponseEntity<SuccessResponse<Void>> deleteComment(Long userId, Long gatheringId, Long noticeId, Long commentId) {
-        commandService.deleteComment(userId, gatheringId, noticeId, commentId);
         return ResponseEntity.ok(SuccessResponse.ok());
     }
 }

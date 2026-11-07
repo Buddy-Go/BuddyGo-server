@@ -127,24 +127,12 @@ class NoticeIntegrationTest {
         Notice n = notice(gathering);
         request(outsider, get(base()), null).andExpect(status().isForbidden());
         request(outsider, get(path(n)), null).andExpect(status().isForbidden());
-        request(outsider, get(path(n) + "/comments"), null).andExpect(status().isForbidden());
-        request(outsider, post(path(n) + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isForbidden());
-    }
-
-    @Test
-    void 외부인과_나간_작성자는_접근불가() throws Exception {
-        Notice n = notice(gathering);
-        NoticeComment c = comment(n, member);
-        memberParticipation.leave(NOW);
-        request(outsider, get(path(n)), null).andExpect(status().isForbidden());
-        request(member, delete(path(n) + "/comments/" + c.getId()), null).andExpect(status().isForbidden());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"CANCELED", "FINISHED", "EXPIRED", "UNFILLED"})
     void 읽기전용이면_조회만_가능하다(String state) throws Exception {
         Notice n = notice(gathering);
-        NoticeComment c = comment(n, member);
         if (state.equals("CANCELED")) gathering.cancel();
         if (state.equals("FINISHED")) gathering.finish();
         if (state.equals("EXPIRED")) {
@@ -156,57 +144,10 @@ class NoticeIntegrationTest {
         }
         request(member, get(base()), null).andExpect(status().isOk());
         request(member, get(path(n)), null).andExpect(status().isOk());
-        request(member, get(path(n) + "/comments"), null).andExpect(status().isOk());
         request(host, post(base()), "{\"title\":\"공지\",\"content\":\"본문\"}").andExpect(status().isConflict());
         request(host, patch(path(n)), "{\"title\":\"변경\"}").andExpect(status().isConflict());
         request(host, delete(path(n)), null).andExpect(status().isConflict());
-        request(member, post(path(n) + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isConflict());
-        request(host, delete(path(n) + "/comments/" + c.getId()), null).andExpect(status().isConflict());
         assertThat(notifications.count()).isZero();
-    }
-
-    @Test
-    void 진행중에는_댓글을_쓸수있다() throws Exception {
-        gathering.close();
-        gathering.changeCore(gathering.getPlace(), NOW.minusSeconds(60), Duration.ofHours(1), (short) 3, GenderRule.ANY);
-        gathering.start();
-        Notice n = notice(gathering);
-        request(member, post(path(n) + "/comments"), "{\"content\":\"곧 도착해요\"}")
-                .andExpect(status().isCreated());
-    }
-
-    @Test
-    void 댓글알림은_호스트와_이미댓글단_확정자에게_중복없이_간다() throws Exception {
-        Notice n = notice(gathering);
-        comment(n, other); comment(n, other); comment(n, outsider);
-        request(member, post(path(n) + "/comments"), "{\"content\":\"좋아요\"}")
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.authorId").value(member.getId()));
-        assertThat(notifications.findAll()).hasSize(2);
-        assertThat(notifications.findAll().stream().map(x -> x.getReceiver().getId()).toList())
-                .containsExactlyInAnyOrder(host.getId(), other.getId());
-    }
-
-    @Test
-    void 호스트댓글은_본인에게_알리지않고_나간사람도_제외한다() throws Exception {
-        Notice n = notice(gathering);
-        comment(n, member); comment(n, other);
-        memberParticipation.leave(NOW);
-        request(host, post(path(n) + "/comments"), "{\"content\":\"확인\"}").andExpect(status().isCreated());
-        assertThat(notifications.findAll()).hasSize(1);
-        assertThat(notifications.findAll().getFirst().getReceiver().getId()).isEqualTo(other.getId());
-    }
-
-    @Test
-    void 댓글삭제는_작성자와_호스트만_가능하다() throws Exception {
-        Notice n = notice(gathering);
-        NoticeComment mine = comment(n, member);
-        NoticeComment theirs = comment(n, other);
-        request(member, delete(path(n) + "/comments/" + theirs.getId()), null)
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("N003"));
-        request(member, delete(path(n) + "/comments/" + mine.getId()), null).andExpect(status().isOk());
-        request(host, delete(path(n) + "/comments/" + theirs.getId()), null).andExpect(status().isOk());
-        em.flush();
-        assertThat(comments.count()).isZero();
     }
 
     @Test
@@ -226,16 +167,12 @@ class NoticeIntegrationTest {
     }
 
     @Test
-    void 다른모임_공지와_다른공지_댓글을_조작할수없다() throws Exception {
-        Notice n = notice(gathering);
+    void 다른모임_공지를_조작할수없다() throws Exception {
         Notice foreign = notice(gathering());
-        NoticeComment c = comment(foreign, member);
         String wrong = base() + "/" + foreign.getId();
         request(host, get(wrong), null).andExpect(status().isNotFound());
         request(host, patch(wrong), "{\"title\":\"변경\"}").andExpect(status().isNotFound());
         request(host, delete(wrong), null).andExpect(status().isNotFound());
-        request(host, post(wrong + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isNotFound());
-        request(host, delete(path(n) + "/comments/" + c.getId()), null).andExpect(status().isNotFound());
         assertThat(notifications.count()).isZero();
     }
 
@@ -250,10 +187,6 @@ class NoticeIntegrationTest {
         request(member, get(base()).param("size", "1").param("page", "1"), null)
                 .andExpect(jsonPath("$.data.content[0].noticeId").value(first.getId()))
                 .andExpect(jsonPath("$.data.hasNext").value(false));
-        NoticeComment c = comment(first, member); comment(first, host);
-        request(member, get(path(first) + "/comments").param("size", "1"), null)
-                .andExpect(jsonPath("$.data.content[0].commentId").value(c.getId()))
-                .andExpect(jsonPath("$.data.hasNext").value(true));
         request(member, get(base()).param("page", "99"), null).andExpect(jsonPath("$.data.content").isEmpty());
     }
 
@@ -272,9 +205,6 @@ class NoticeIntegrationTest {
         request(host, post(base()), "{\"title\":\"" + "가".repeat(256) + "\",\"content\":\"본문\"}")
                 .andExpect(status().isBadRequest());
         request(host, patch(path(n)), "{\"content\":\"" + "가".repeat(201) + "\"}").andExpect(status().isBadRequest());
-        request(member, post(path(n) + "/comments"), "{\"content\":\" \"}").andExpect(status().isBadRequest());
-        request(member, post(path(n) + "/comments"), "{\"content\":\"" + "가".repeat(201) + "\"}")
-                .andExpect(status().isBadRequest());
         request(host, post(base()), "{\"title\":\"" + "가".repeat(255) + "\",\"content\":\"" + "가".repeat(200) + "\"}")
                 .andExpect(status().isCreated());
     }
@@ -286,11 +216,9 @@ class NoticeIntegrationTest {
         mvc.perform(post(base()).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
         request(host, get(base()).param("page", "-1"), null).andExpect(status().isBadRequest());
-        request(host, get(path(n) + "/comments").param("size", "101"), null).andExpect(status().isBadRequest());
         gathering.delete(NOW);
         request(host, get(base()), null).andExpect(status().isNotFound());
         request(host, get(path(n)), null).andExpect(status().isNotFound());
-        request(host, post(path(n) + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isNotFound());
     }
 
     private User user(String name) {

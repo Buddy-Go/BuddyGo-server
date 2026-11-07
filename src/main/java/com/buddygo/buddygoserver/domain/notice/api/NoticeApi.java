@@ -1,10 +1,7 @@
 package com.buddygo.buddygoserver.domain.notice.api;
 
-import com.buddygo.buddygoserver.domain.notice.dto.request.CommentCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.dto.request.NoticeCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.dto.request.NoticeUpdateRequest;
-import com.buddygo.buddygoserver.domain.notice.dto.response.CommentListResponse;
-import com.buddygo.buddygoserver.domain.notice.dto.response.CommentResponse;
 import com.buddygo.buddygoserver.domain.notice.dto.response.NoticeListResponse;
 import com.buddygo.buddygoserver.domain.notice.dto.response.NoticeResponse;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
@@ -26,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-@Tag(name = "notice", description = "모임 공지·댓글. 호스트와 확정 참가자만 접근하며 나간 사람은 접근할 수 없다.")
+@Tag(name = "notice", description = "모임 공지. 호스트와 확정 참가자만 접근하며 나간 사람은 접근할 수 없다.")
 @RequestMapping("/api/gatherings/{gatheringId}/notices")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "G004 토큰 없음 · A002 유효하지 않음 · A003 만료"),
@@ -63,22 +60,4 @@ public interface NoticeApi {
     ResponseEntity<SuccessResponse<Void>> delete(@LoginUserId Long userId,
             @PathVariable Long gatheringId, @PathVariable Long noticeId);
 
-    @Operation(summary = "댓글 목록", description = "작성순(createdAt·id 오름차순). page는 0부터, size 1~100(기본 20). 대댓글은 지원하지 않는다.")
-    @GetMapping("/{noticeId}/comments")
-    ResponseEntity<SuccessResponse<CommentListResponse>> comments(@LoginUserId Long userId,
-            @PathVariable Long gatheringId, @PathVariable Long noticeId,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size);
-
-    @Operation(summary = "댓글 작성", description = "내용 1~200자(기존 DB 기준), 공백 불가. 호스트와 해당 공지에 댓글을 남긴 현재 확정 참가자에게 알림. 작성자는 제외한다.")
-    @ApiResponse(responseCode = "201", description = "작성 성공")
-    @PostMapping("/{noticeId}/comments")
-    ResponseEntity<SuccessResponse<CommentResponse>> comment(@LoginUserId Long userId,
-            @PathVariable Long gatheringId, @PathVariable Long noticeId, @Valid @RequestBody CommentCreateRequest request);
-
-    @Operation(summary = "댓글 삭제", description = "접근 가능한 작성자 본인 또는 호스트만. 종료·취소된 모임에서는 삭제도 불가.")
-    @ApiResponse(responseCode = "403", description = "N003 작성자 본인·호스트가 아님 · N004 모임 접근 불가")
-    @DeleteMapping("/{noticeId}/comments/{commentId}")
-    ResponseEntity<SuccessResponse<Void>> deleteComment(@LoginUserId Long userId,
-            @PathVariable Long gatheringId, @PathVariable Long noticeId, @PathVariable Long commentId);
 }

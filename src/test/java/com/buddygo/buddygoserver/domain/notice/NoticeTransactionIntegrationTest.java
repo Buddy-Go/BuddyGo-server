@@ -8,7 +8,6 @@ import com.buddygo.buddygoserver.domain.gathering.entity.Place;
 import com.buddygo.buddygoserver.domain.gathering.enums.GenderRule;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
-import com.buddygo.buddygoserver.domain.notice.dto.request.CommentCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.dto.request.NoticeCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.service.NoticeCommandService;
 import com.buddygo.buddygoserver.domain.user.entity.User;
@@ -35,9 +34,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import static com.buddygo.buddygoserver.domain.notice.NoticeIntegrationTest.NOW;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -111,16 +107,11 @@ class NoticeTransactionIntegrationTest {
         mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, auth(memberId)))
                 .andExpect(jsonPath("$.data.content").value("변경"))
                 .andExpect(jsonPath("$.data.edited").value(true));
-        mvc.perform(post(path + "/comments").header(HttpHeaders.AUTHORIZATION, auth(memberId))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"댓글\"}"))
-                .andExpect(status().isCreated());
-        mvc.perform(get(path + "/comments").header(HttpHeaders.AUTHORIZATION, auth(hostId)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.content[0].authorId").value(memberId));
         mvc.perform(delete(path).header(HttpHeaders.AUTHORIZATION, auth(hostId))).andExpect(status().isOk());
         mvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, auth(memberId))).andExpect(status().isNotFound());
         assertThat(jdbc.queryForObject("select count(*) from notice_comments where notice_id = ?", Long.class, noticeId)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from notifications where gathering_id = ? and notice_id is null",
-                Long.class, gatheringId)).isEqualTo(5);
+                Long.class, gatheringId)).isEqualTo(4);
     }
 
     @Test
@@ -131,40 +122,6 @@ class NoticeTransactionIntegrationTest {
         })).isInstanceOf(IllegalStateException.class).hasMessage("강제 롤백 검증");
         assertThat(jdbc.queryForObject("select count(*) from notices where gathering_id = ?", Long.class, gatheringId)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from notifications where gathering_id = ?", Long.class, gatheringId)).isZero();
-    }
-
-    @Test
-    void 동시에_댓글을_달아도_앞선_댓글작성자의_알림을_놓치지않는다() throws Exception {
-        long noticeId = commands.create(hostId, gatheringId, new NoticeCreateRequest("공지", "본문")).noticeId();
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        var executor = Executors.newFixedThreadPool(2);
-        try {
-            var first = executor.submit(() -> {
-                ready.countDown();
-                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("시작 대기 초과");
-                return commands.comment(memberId, gatheringId, noticeId, new CommentCreateRequest("첫 참가자"));
-            });
-            var second = executor.submit(() -> {
-                ready.countDown();
-                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("시작 대기 초과");
-                return commands.comment(otherId, gatheringId, noticeId, new CommentCreateRequest("둘째 참가자"));
-            });
-            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
-            start.countDown();
-            first.get(20, TimeUnit.SECONDS);
-            second.get(20, TimeUnit.SECONDS);
-        } finally {
-            start.countDown();
-            executor.shutdownNow();
-            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
-        }
-        assertThat(jdbc.queryForObject("select count(*) from notice_comments where notice_id = ?", Long.class, noticeId)).isEqualTo(2);
-        // 각 댓글의 호스트 알림 2개 + 먼저 쓴 참가자에게 보내는 알림 1개.
-        assertThat(jdbc.queryForObject("select count(*) from notifications where notice_id = ? and type = 'NOTICE_COMMENT_CREATED'",
-                Long.class, noticeId)).isEqualTo(3);
-        assertThat(jdbc.queryForObject("select count(*) from notifications where notice_id = ? and receiver_id = actor_id",
-                Long.class, noticeId)).isZero();
     }
 
     private User user(String name) {
