@@ -201,7 +201,7 @@ class NoticeCommentIntegrationTest {
         request(member, post(url), "{\"content\":\"" + "가".repeat(200) + "\"}").andExpect(status().isCreated());
         request(member, get(url).param("page", "-1"), null).andExpect(status().isBadRequest());
         request(member, get(url).param("size", "101"), null).andExpect(status().isBadRequest());
-        gathering.delete(NOW);
+        gatherings.deleteWithChildren(gathering.getId());
         request(member, get(url), null).andExpect(status().isNotFound());
         request(member, post(url), "{\"content\":\"댓글\"}").andExpect(status().isNotFound());
     }

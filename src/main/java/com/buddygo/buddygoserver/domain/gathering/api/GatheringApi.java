@@ -90,7 +90,7 @@ public interface GatheringApi {
     ResponseEntity<SuccessResponse<GatheringDetailResponse>> update(
             @LoginUserId Long userId, @PathVariable Long gatheringId, @Valid @RequestBody GatheringUpdateRequest request);
 
-    @Operation(summary = "모임 삭제", description = "확정 참가자(호스트 제외)가 0명일 때만. 대기 신청은 자동 거절된다.")
+    @Operation(summary = "모임 삭제", description = "확정 참가자(호스트 제외)가 0명일 때만. 모임과 대기 신청·찜·공지가 함께 지워진다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제 성공"),
             @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),

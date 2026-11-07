@@ -105,16 +105,19 @@ public class GatheringCommandService {
         return gatheringQueryService.getDetail(gatheringId, userId);
     }
 
-    /** 삭제. 확정 참가자(호스트 제외)가 0명일 때만. 대기 신청은 자동 거절되고 매너온도 영향은 없다. */
+    /**
+     * 삭제. 확정 참가자(호스트 제외)가 0명일 때만. 매너온도 영향은 없다.
+     * 모임 행을 실제로 지우고, 참여(대기 신청 포함)·찜·헬스 기준·공지는 DB FK CASCADE 로 함께 지워진다.
+     */
     public void delete(Long userId, Long gatheringId) {
         Instant now = Instant.now(clock);
         Gathering gathering = lockForHostAction(gatheringId, userId, now);
         if (participationRepository.countConfirmedExcludingHost(gatheringId) > 0) {
             throw new CustomException(GatheringErrorType.HAS_CONFIRMED_PARTICIPANTS);
         }
-        participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_DELETED, now);
-        gathering.delete(now);
-        // TODO 자동 거절 알림 (알림 도메인 구현 후)
+        // TODO 대기 신청자에게 자동 거절 알림 (알림 도메인 구현 후). 삭제 전에 보내고, 알림의 gathering_id 는
+        //  삭제 때 NULL 이 되므로 메시지에 모임 제목을 담는다.
+        gatheringRepository.deleteWithChildren(gathering.getId());
     }
 
     /** 호스트 취소(방폭). 확정 참가자(호스트 제외)가 1명 이상일 때만. 대기 신청은 자동 거절된다. */
@@ -136,7 +139,7 @@ public class GatheringCommandService {
      * 그렇지 않으면 시작을 미뤄 자동 취소를 피하거나, 페널티 없는 인원 미달 취소가 호스트 취소로 남는다.
      */
     private Gathering lockForHostAction(Long gatheringId, Long userId, Instant now) {
-        Gathering gathering = gatheringRepository.findActiveByIdForUpdate(gatheringId)
+        Gathering gathering = gatheringRepository.findByIdForUpdate(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
         if (!gathering.isHostedBy(userId)) {
             throw new CustomException(GatheringErrorType.NOT_HOST);

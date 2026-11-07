@@ -33,7 +33,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
                 FROM participations pa
                 JOIN check_ins ca ON ca.participation_id = pa.id AND ca.attendance IN ('ON_TIME', 'LATE')
                 JOIN gatherings g ON g.id = pa.gathering_id
-                     AND g.status IN ('IN_PROGRESS', 'FINISHED') AND g.deleted_at IS NULL
+                     AND g.status IN ('IN_PROGRESS', 'FINISHED')
                 JOIN participations pb ON pb.gathering_id = g.id AND pb.user_id = :otherId
                 JOIN check_ins cb ON cb.participation_id = pb.id AND cb.attendance IN ('ON_TIME', 'LATE')
                 WHERE pa.user_id = :userId)""")
@@ -59,7 +59,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             FROM participations mine
             JOIN check_ins mc ON mc.participation_id = mine.id AND mc.attendance IN ('ON_TIME', 'LATE')
             JOIN gatherings g ON g.id = mine.gathering_id
-                 AND g.status IN ('IN_PROGRESS', 'FINISHED') AND g.deleted_at IS NULL
+                 AND g.status IN ('IN_PROGRESS', 'FINISHED')
             JOIN participations other ON other.gathering_id = g.id AND other.user_id <> mine.user_id
             JOIN check_ins oc ON oc.participation_id = other.id AND oc.attendance IN ('ON_TIME', 'LATE')
             JOIN users u ON u.id = other.user_id
@@ -83,7 +83,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
                                    com.buddygo.buddygoserver.domain.checkin.enums.Attendance.LATE)
               and g.status in (com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus.IN_PROGRESS,
                                com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus.FINISHED)
-              and g.deletedAt is null
+             
             group by p.user.id""")
     List<AttendedCount> countAttendedByUserIds(Collection<Long> userIds);
 }

@@ -146,10 +146,9 @@ class MyActivityIntegrationTest {
     }
 
     @Test
-    void 모임취소는_지난내역이고_삭제모임은_제외한다() throws Exception {
+    void 모임취소는_지난내역이다() throws Exception {
         Gathering canceled = gathering(me, NOW.plusSeconds(7200));
         canceled.cancel();
-        gathering(me, NOW.plusSeconds(10800)).delete(NOW);
         activities("host", "past").andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].gatheringStatus").value("CANCELED"));

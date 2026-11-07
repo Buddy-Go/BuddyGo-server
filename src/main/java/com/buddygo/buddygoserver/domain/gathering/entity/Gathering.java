@@ -71,9 +71,6 @@ public class Gathering extends BaseEntity {
     @Builder.Default
     private GatheringStatus status = GatheringStatus.RECRUITING;
 
-    @Column(name = "deleted_at")
-    private Instant deletedAt;
-
     public static Gathering open(User host, Place place, String title, String description, String detailAddress,
                                  Instant startAt, Duration duration, short capacity, GenderRule genderRule) {
         return Gathering.builder()
@@ -154,9 +151,5 @@ public class Gathering extends BaseEntity {
 
     public void cancel() {
         this.status = GatheringStatus.CANCELED;
-    }
-
-    public void delete(Instant now) {
-        this.deletedAt = now;
     }
 }

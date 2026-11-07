@@ -17,7 +17,7 @@ public interface MyActivityRepository extends Repository<Participation, Long> {
     String UPCOMING = "(g.endAt > :now and g.status not in ('FINISHED', 'CANCELED'))";
 
     String FILTER = """
-            where p.user.id = :userId and g.deletedAt is null
+            where p.user.id = :userId
               and p.status in ('PENDING', 'CONFIRMED')
               and ((:host = true and g.host.id = :userId) or (:host = false and g.host.id <> :userId))
               and ((:upcoming = true and

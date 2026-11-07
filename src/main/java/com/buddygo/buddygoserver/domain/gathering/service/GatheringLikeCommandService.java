@@ -14,7 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 
-/** 찜은 모임 상태와 무관해 모임 행을 잠그지 않는다. 중복 찜은 ON CONFLICT 로 건너뛴다. */
+/**
+ * 찜은 모임 상태와 무관해 호스트 작업처럼 모임 행을 잠그지 않는다. 저장할 때만 FOR KEY SHARE 로 잡아
+ * 동시에 삭제된 모임에 찜이 들어가 FK 위반(500)이 나지 않게 한다. 중복 찜은 ON CONFLICT 로 건너뛴다.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -27,7 +30,9 @@ public class GatheringLikeCommandService {
 
     /** 이미 찜한 모임도 성공한다. */
     public void like(Long userId, Long gatheringId) {
-        requireActiveGathering(gatheringId);
+        if (!gatheringRepository.lockForKeyShare(gatheringId)) {
+            throw new CustomException(GatheringErrorType.NOT_FOUND);
+        }
         if (!userRepository.existsById(userId)) {
             throw new CustomException(UserErrorType.NOT_FOUND);
         }
@@ -36,12 +41,12 @@ public class GatheringLikeCommandService {
 
     /** 반복 해제도 성공한다. 다른 사용자의 찜에는 영향을 주지 않는다. */
     public void unlike(Long userId, Long gatheringId) {
-        requireActiveGathering(gatheringId);
+        requireGathering(gatheringId);
         gatheringLikeRepository.deleteById(new GatheringLikeId(userId, gatheringId));
     }
 
-    private void requireActiveGathering(Long gatheringId) {
-        if (!gatheringRepository.existsActiveById(gatheringId)) {
+    private void requireGathering(Long gatheringId) {
+        if (!gatheringRepository.existsById(gatheringId)) {
             throw new CustomException(GatheringErrorType.NOT_FOUND);
         }
     }

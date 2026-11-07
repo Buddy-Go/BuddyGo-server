@@ -216,7 +216,7 @@ class NoticeIntegrationTest {
         mvc.perform(post(base()).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
         request(host, get(base()).param("page", "-1"), null).andExpect(status().isBadRequest());
-        gathering.delete(NOW);
+        gatherings.deleteWithChildren(gathering.getId());
         request(host, get(base()), null).andExpect(status().isNotFound());
         request(host, get(path(n)), null).andExpect(status().isNotFound());
     }

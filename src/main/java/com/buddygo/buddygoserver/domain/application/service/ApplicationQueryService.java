@@ -29,7 +29,7 @@ public class ApplicationQueryService {
 
     /** 호스트용 참가자 관리. 신청자에게는 닉네임·매너온도·신청 시점 헬스 수준(없으면 미설정)·한마디가 보인다. */
     public ApplicantsResponse getApplicants(Long userId, Long gatheringId) {
-        Gathering gathering = gatheringRepository.findActiveWithHostAndPlace(gatheringId)
+        Gathering gathering = gatheringRepository.findWithHostAndPlace(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
         if (!gathering.isHostedBy(userId)) {
             throw new CustomException(GatheringErrorType.NOT_HOST);

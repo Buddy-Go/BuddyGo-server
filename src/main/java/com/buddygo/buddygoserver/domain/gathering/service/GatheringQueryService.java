@@ -48,7 +48,7 @@ public class GatheringQueryService {
 
     /** 보는 사람(호스트 / 확정 참가자 / 대기 신청자 / 그 외)에 따라 명단·판정·취소 사유가 달라진다. */
     public GatheringDetailResponse getDetail(Long gatheringId, Long viewerId) {
-        Gathering gathering = gatheringRepository.findActiveWithHostAndPlace(gatheringId)
+        Gathering gathering = gatheringRepository.findWithHostAndPlace(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
         Long hostId = gathering.getHost().getId();
         boolean isHost = hostId.equals(viewerId);

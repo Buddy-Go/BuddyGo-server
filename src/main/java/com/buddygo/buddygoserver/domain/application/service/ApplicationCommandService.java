@@ -28,7 +28,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 신청·수락·거절·나가기. 모든 변경은 모임 행을 먼저 잠그고(findActiveByIdForUpdate) 참여 상태를 읽는다.
+ * 신청·수락·거절·나가기. 모든 변경은 모임 행을 먼저 잠그고(findByIdForUpdate) 참여 상태를 읽는다.
  * 모임 수정·삭제·취소도 같은 행을 잠그므로 확정 인원과 모임 상태 판단이 서로 어긋나지 않는다.
  */
 @Service
@@ -177,7 +177,7 @@ public class ApplicationCommandService {
     }
 
     private Gathering lockGathering(Long gatheringId) {
-        return gatheringRepository.findActiveByIdForUpdate(gatheringId)
+        return gatheringRepository.findByIdForUpdate(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
     }
 
