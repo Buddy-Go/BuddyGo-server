@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,14 @@ public interface GatheringRepository extends JpaRepository<Gathering, Long> {
             join fetch g.place
             where g.id = :id""")
     Optional<Gathering> findWithHostAndPlace(Long id);
+
+    /** 탐색 카드용. 순서는 보장하지 않는다. */
+    @Query("""
+            select g from Gathering g
+            join fetch g.host
+            join fetch g.place
+            where g.id in :ids""")
+    List<Gathering> findAllWithHostAndPlace(Collection<Long> ids);
 
     /**
      * 모임 행을 FOR KEY SHARE 로 잡고 있으면 true, 없으면 false.

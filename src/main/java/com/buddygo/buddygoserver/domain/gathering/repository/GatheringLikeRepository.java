@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.Set;
 
 public interface GatheringLikeRepository extends JpaRepository<GatheringLike, GatheringLikeId> {
 
@@ -17,4 +19,8 @@ public interface GatheringLikeRepository extends JpaRepository<GatheringLike, Ga
             VALUES (:userId, :gatheringId, :createdAt)
             ON CONFLICT (user_id, gathering_id) DO NOTHING""")
     int insertIgnoringDuplicate(Long userId, Long gatheringId, Instant createdAt);
+
+    /** gatheringIds 중 이 사용자가 찜한 모임 */
+    @Query("select l.id.gatheringId from GatheringLike l where l.id.userId = :userId and l.id.gatheringId in :gatheringIds")
+    Set<Long> findLikedGatheringIds(Long userId, Collection<Long> gatheringIds);
 }
