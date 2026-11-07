@@ -8,19 +8,18 @@ import org.springframework.data.repository.Repository;
 
 import java.time.Instant;
 
-/** 내 활동은 모임당 가장 최근 신청 한 건으로 표시한다. 과거 신청 행은 DB에 보존한다. */
+/**
+ * 내 활동은 대기·확정 신청만 보여준다. 거절·신청 취소·나가기와 삭제된 모임은 빠진다.
+ * 대기·확정 신청은 부분 유니크 인덱스로 모임당 하나뿐이라 한 모임이 두 번 나오지 않는다.
+ */
 public interface MyActivityRepository extends Repository<Participation, Long> {
 
-    String UPCOMING = """
-            (g.endAt > :now and g.status not in ('FINISHED', 'CANCELED')
-             and p.status in ('PENDING', 'CONFIRMED'))
-            """;
+    String UPCOMING = "(g.endAt > :now and g.status not in ('FINISHED', 'CANCELED'))";
 
     String FILTER = """
             where p.user.id = :userId and g.deletedAt is null
+              and p.status in ('PENDING', 'CONFIRMED')
               and ((:host = true and g.host.id = :userId) or (:host = false and g.host.id <> :userId))
-              and p.id = (select max(latest.id) from Participation latest
-                          where latest.user.id = :userId and latest.gathering.id = g.id)
               and ((:upcoming = true and
             """ + UPCOMING + ") or (:upcoming = false and not " + UPCOMING + "))";
 
