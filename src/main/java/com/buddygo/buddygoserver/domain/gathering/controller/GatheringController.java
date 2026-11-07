@@ -7,6 +7,7 @@ import com.buddygo.buddygoserver.domain.gathering.dto.request.GatheringUpdateReq
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailResponse;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringCommandService;
 import com.buddygo.buddygoserver.domain.gathering.service.GatheringQueryService;
+import com.buddygo.buddygoserver.domain.gathering.service.GatheringLikeCommandService;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,19 @@ public class GatheringController implements GatheringApi {
 
     private final GatheringCommandService gatheringCommandService;
     private final GatheringQueryService gatheringQueryService;
+    private final GatheringLikeCommandService gatheringLikeCommandService;
+
+    @Override
+    public ResponseEntity<SuccessResponse<Void>> like(Long userId, Long gatheringId) {
+        gatheringLikeCommandService.like(userId, gatheringId);
+        return ResponseEntity.ok(SuccessResponse.ok());
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<Void>> unlike(Long userId, Long gatheringId) {
+        gatheringLikeCommandService.unlike(userId, gatheringId);
+        return ResponseEntity.ok(SuccessResponse.ok());
+    }
 
     @Override
     public ResponseEntity<SuccessResponse<GatheringDetailResponse>> create(Long userId, GatheringCreateRequest request) {
