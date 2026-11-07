@@ -2,7 +2,6 @@ package com.buddygo.buddygoserver.domain.user.dto.response;
 
 import com.buddygo.buddygoserver.domain.application.entity.Participation;
 import com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus;
-import com.buddygo.buddygoserver.domain.application.enums.RejectReason;
 import com.buddygo.buddygoserver.domain.checkin.enums.Attendance;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
 import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
@@ -26,8 +25,7 @@ public record MyActivityResponse(
         long confirmedCount,
         int capacity,
         GatheringStatus gatheringStatus,
-        ParticipationStatus participationStatus,
-        RejectReason rejectReason,
+        @Schema(description = "PENDING(대기중) 또는 CONFIRMED") ParticipationStatus participationStatus,
         @Schema(description = "체크인 판정. 아직 기록이 없으면 null") Attendance attendance,
         @Schema(description = "종료 후 정상·지각 참석은 COMPLETED, 노쇼는 NO_SHOW, 그 외 null") Result result,
         boolean inProgress
@@ -52,7 +50,7 @@ public record MyActivityResponse(
         return new MyActivityResponse(g.getId(), participation.getId(), g.getTitle(), g.getSport(),
                 g.getPlace().getName(), g.getPlace().getJibunAddress(), g.getDetailAddress(),
                 g.getStartAt(), g.getEndAt(), g.getHost().getId(), g.getHost().getNickname(), count,
-                g.getCapacity(), g.getStatus(), participation.getStatus(), participation.getRejectReason(),
+                g.getCapacity(), g.getStatus(), participation.getStatus(),
                 attendance, result, inProgress);
     }
 }

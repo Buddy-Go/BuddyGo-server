@@ -43,7 +43,8 @@ public class MyActivityQueryService {
         boolean upcoming = period.equals("upcoming");
         Sort.Direction direction = upcoming ? Sort.Direction.ASC : Sort.Direction.DESC;
         Page<Participation> activities = myActivityRepository.findMyActivities(userId, role.equals("host"), upcoming,
-                now, PageRequest.of(page, size, Sort.by(direction, "gathering.startAt", "id")));
+                now, PageRequest.of(page, size, Sort.by(Sort.Order.by("gathering.startAt").with(direction),
+                        Sort.Order.asc("id"))));
         if (activities.isEmpty()) {
             return new MyActivitiesResponse(List.of(), page, size, activities.getTotalElements(), activities.getTotalPages());
         }
