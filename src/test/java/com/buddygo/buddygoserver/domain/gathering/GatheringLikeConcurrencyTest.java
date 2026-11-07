@@ -1,6 +1,7 @@
 package com.buddygo.buddygoserver.domain.gathering;
 
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
+import com.buddygo.buddygoserver.domain.gathering.exception.GatheringErrorType;
 import com.buddygo.buddygoserver.domain.gathering.entity.Place;
 import com.buddygo.buddygoserver.domain.gathering.enums.GenderRule;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
@@ -9,6 +10,7 @@ import com.buddygo.buddygoserver.domain.gathering.service.GatheringLikeCommandSe
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
+import com.buddygo.buddygoserver.global.exception.CustomException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,10 +27,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** 실제로 커밋하며 동시 요청을 낸다. 테스트가 만든 행만 정리한다. */
 @SpringBootTest
@@ -105,7 +110,7 @@ class GatheringLikeConcurrencyTest {
         var executor = Executors.newSingleThreadExecutor();
         try {
             var holder = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-                gatheringRepository.findActiveByIdForUpdate(gatheringId).orElseThrow();
+                gatheringRepository.findByIdForUpdate(gatheringId).orElseThrow();
                 locked.countDown();
                 try {
                     release.await(20, TimeUnit.SECONDS);
@@ -124,5 +129,39 @@ class GatheringLikeConcurrencyTest {
         }
         assertThat(jdbc.queryForObject("select count(*) from gathering_likes where gathering_id = ?",
                 Long.class, gatheringId)).isEqualTo(1);
+    }
+
+    @Test
+    void 삭제_중인_모임에_찜하면_삭제를_기다렸다가_GA001() throws Exception {
+        CountDownLatch deleted = new CountDownLatch(1);
+        CountDownLatch commit = new CountDownLatch(1);
+        var deleter = Executors.newSingleThreadExecutor();
+        var liker = Executors.newSingleThreadExecutor();
+        try {
+            var deletion = deleter.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                jdbc.update("delete from gatherings where id = ?", gatheringId);
+                deleted.countDown();
+                try {
+                    commit.await(20, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+            assertThat(deleted.await(10, TimeUnit.SECONDS)).isTrue();
+            var like = liker.submit(() -> likeService.like(memberId, gatheringId));
+            // 삭제가 커밋되기 전에는 찜이 끝나지 않는다(FOR KEY SHARE 가 DELETE 를 기다린다).
+            assertThatThrownBy(() -> like.get(1, TimeUnit.SECONDS)).isInstanceOf(TimeoutException.class);
+            commit.countDown();
+            deletion.get(20, TimeUnit.SECONDS);
+            assertThatThrownBy(() -> like.get(20, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .cause().isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorType())
+                    .isEqualTo(GatheringErrorType.NOT_FOUND);
+        } finally {
+            commit.countDown();
+            deleter.shutdownNow();
+            liker.shutdownNow();
+        }
     }
 }

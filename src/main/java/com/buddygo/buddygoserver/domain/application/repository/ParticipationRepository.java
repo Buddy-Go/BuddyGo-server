@@ -79,7 +79,7 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             where p.user.id in :userIds
               and p.status in (com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.PENDING,
                                com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.CONFIRMED)
-              and g.deletedAt is null
+             
               and g.status in (com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus.RECRUITING,
                                com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus.CLOSED,
                                com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus.IN_PROGRESS)

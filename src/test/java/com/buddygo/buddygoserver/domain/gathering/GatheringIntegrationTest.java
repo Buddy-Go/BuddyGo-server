@@ -442,19 +442,46 @@ class GatheringIntegrationTest {
     class 삭제 {
 
         @Test
-        void 확정_참가자가_없으면_삭제되고_대기_신청은_자동_거절된다() throws Exception {
+        void 확정_참가자가_없으면_모임과_딸린_행이_함께_지워지고_알림은_연결만_끊긴다() throws Exception {
             long id = createdId(host, body(null, "[\"CHEST\"]", false));
             Participation pending = participate(id, other, ParticipationStatus.PENDING);
+            like(member, id).andExpect(status().isOk());
+            exec("INSERT INTO participation_gym_records (participation_id, body_part, record_value) VALUES (?1, 'CHEST', 80)",
+                    pending.getId());
+            exec("INSERT INTO notices (gathering_id, title, content, created_at) VALUES (?1, '공지', '본문', now())", id);
+            long noticeId = ((Number) entityManager.createNativeQuery("SELECT id FROM notices WHERE gathering_id = ?1")
+                    .setParameter(1, id).getSingleResult()).longValue();
+            exec("INSERT INTO notice_comments (notice_id, author_id, content, created_at) VALUES (?1, ?2, '댓글', now())",
+                    noticeId, host.getId());
+            exec("INSERT INTO notifications (receiver_id, type, gathering_id, message, created_at) "
+                    + "VALUES (?1, 'TEST', ?2, '알림', now())", other.getId(), id);
+            flushAndClear();
 
             deleteGathering(host, id).andExpect(status().isOk());
             flushAndClear();
 
-            assertThat(gatheringRepository.findById(id).orElseThrow().getDeletedAt()).isEqualTo(NOW);
-            Participation rejected = participationRepository.findById(pending.getId()).orElseThrow();
-            assertThat(rejected.getStatus()).isEqualTo(ParticipationStatus.REJECTED);
-            assertThat(rejected.getRejectReason()).isEqualTo(RejectReason.MEETING_DELETED);
+            assertThat(gatheringRepository.findById(id)).isEmpty();
+            for (String table : new String[]{"participations", "gathering_likes", "gathering_gym_parts", "notices"}) {
+                assertThat(count("SELECT count(*) FROM " + table + " WHERE gathering_id = ?1", id)).as(table).isZero();
+            }
+            assertThat(count("SELECT count(*) FROM participation_gym_records WHERE participation_id = ?1", pending.getId())).isZero();
+            assertThat(count("SELECT count(*) FROM notice_comments WHERE notice_id = ?1", noticeId)).isZero();
+            assertThat(count("SELECT count(*) FROM notifications WHERE receiver_id = ?1 AND type = 'TEST' AND gathering_id IS NULL",
+                    other.getId())).isEqualTo(1);
             detail(host, id).andExpect(jsonPath("$.code").value("GA001"));
             deleteGathering(host, id).andExpect(jsonPath("$.code").value("GA001"));
+        }
+
+        private void exec(String sql, Object... params) {
+            var query = entityManager.createNativeQuery(sql);
+            for (int i = 0; i < params.length; i++) {
+                query.setParameter(i + 1, params[i]);
+            }
+            query.executeUpdate();
+        }
+
+        private long count(String sql, Object param) {
+            return ((Number) entityManager.createNativeQuery(sql).setParameter(1, param).getSingleResult()).longValue();
         }
 
         @Test

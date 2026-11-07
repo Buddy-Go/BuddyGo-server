@@ -154,16 +154,13 @@ class GatheringStatusSchedulerTest {
         }
 
         @Test
-        void 취소되거나_삭제된_모임은_건드리지_않는다() {
+        void 취소된_모임은_건드리지_않는다() {
             Gathering canceled = gathering(START, GatheringStatus.CANCELED);
-            Gathering deleted = gathering(START, GatheringStatus.CLOSED);
-            deleted.delete(NOW);
 
             run(END);
 
             assertThat(statusOf(canceled)).isEqualTo(GatheringStatus.CANCELED);
-            assertThat(statusOf(deleted)).isEqualTo(GatheringStatus.CLOSED);
-            assertThat(attendanceOf(deleted)).isEmpty();
+            assertThat(attendanceOf(canceled)).isEmpty();
         }
     }
 

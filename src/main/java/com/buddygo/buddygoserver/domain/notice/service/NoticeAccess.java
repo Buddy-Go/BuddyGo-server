@@ -28,14 +28,14 @@ public class NoticeAccess {
     private final Clock clock;
 
     public Gathering read(Long userId, Long gatheringId) {
-        Gathering g = gatheringRepository.findActiveWithHostAndPlace(gatheringId)
+        Gathering g = gatheringRepository.findWithHostAndPlace(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
         requireMember(userId, g);
         return g;
     }
 
     public Gathering write(Long userId, Long gatheringId, boolean hostOnly) {
-        Gathering g = gatheringRepository.findActiveByIdForUpdate(gatheringId)
+        Gathering g = gatheringRepository.findByIdForUpdate(gatheringId)
                 .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
         if (hostOnly && !g.isHostedBy(userId)) { throw new CustomException(GatheringErrorType.NOT_HOST); }
         requireMember(userId, g);

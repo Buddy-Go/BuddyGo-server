@@ -39,27 +39,27 @@ public class GatheringStatusService {
     /** 데드라인이 지났는데 아직 모집중(정원 미달)인 모임 */
     @Transactional(readOnly = true)
     public List<Long> findUnderCapacityAtDeadline(Instant now) {
-        return gatheringRepository.findActiveIdsByStatusStartingBy(
+        return gatheringRepository.findIdsByStatusStartingBy(
                 GatheringStatus.RECRUITING, now.plus(gatheringProperties.deadlineBeforeStart()));
     }
 
     /** 시작 시각이 된 마감 모임 */
     @Transactional(readOnly = true)
     public List<Long> findStartable(Instant now) {
-        return gatheringRepository.findActiveIdsByStatusStartingBy(GatheringStatus.CLOSED, now);
+        return gatheringRepository.findIdsByStatusStartingBy(GatheringStatus.CLOSED, now);
     }
 
     /** 노쇼 판정 시각(시작 + no-show-after-start)이 지난 진행중 모임 */
     @Transactional(readOnly = true)
     public List<Long> findNoShowDue(Instant now) {
-        return gatheringRepository.findActiveIdsByStatusStartingBy(
+        return gatheringRepository.findIdsByStatusStartingBy(
                 GatheringStatus.IN_PROGRESS, now.minus(checkInProperties.noShowAfterStart()));
     }
 
     /** 종료 시각이 된 진행중 모임 */
     @Transactional(readOnly = true)
     public List<Long> findFinishable(Instant now) {
-        return gatheringRepository.findActiveIdsByStatusEndingBy(GatheringStatus.IN_PROGRESS, now);
+        return gatheringRepository.findIdsByStatusEndingBy(GatheringStatus.IN_PROGRESS, now);
     }
 
     /**
@@ -117,6 +117,6 @@ public class GatheringStatusService {
 
     /** 후보 조회 뒤 삭제된 모임은 null */
     private Gathering lock(Long gatheringId) {
-        return gatheringRepository.findActiveByIdForUpdate(gatheringId).orElse(null);
+        return gatheringRepository.findByIdForUpdate(gatheringId).orElse(null);
     }
 }
