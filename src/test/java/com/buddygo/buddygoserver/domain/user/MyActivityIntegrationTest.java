@@ -101,15 +101,29 @@ class MyActivityIntegrationTest {
 
     @ParameterizedTest
     @EnumSource(value = ParticipationStatus.class, names = {"REJECTED", "CANCELED", "LEFT"})
-    void 거절_취소_나가기는_미래_모임이어도_지난_내역이다(ParticipationStatus state) throws Exception {
+    void 거절_취소_나가기는_보이지_않는다(ParticipationStatus state) throws Exception {
         participate(gathering(other, NOW.plusSeconds(7200)), me, state);
+        Gathering ended = gathering(other, NOW.minusSeconds(7200));
+        ended.finish();
+        participate(ended, me, state);
         activities("participant", "past").andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].participationStatus").value(state.name()));
+                .andExpect(jsonPath("$.data.content").isEmpty());
         activities("participant", "upcoming").andExpect(jsonPath("$.data.content").isEmpty());
     }
 
     @Test
-    void 재신청한_모임은_최신_상태로_한번만_보인다() throws Exception {
+    void 확정된_모임이_취소되면_지난_내역이다() throws Exception {
+        Gathering canceled = gathering(other, NOW.plusSeconds(7200));
+        participate(canceled, me, ParticipationStatus.CONFIRMED);
+        canceled.cancel();
+        activities("participant", "past").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].gatheringStatus").value("CANCELED"))
+                .andExpect(jsonPath("$.data.content[0].participationStatus").value("CONFIRMED"));
+    }
+
+    @Test
+    void 재신청한_모임은_한번만_보인다() throws Exception {
         Gathering g = gathering(other, NOW.plusSeconds(7200));
         participate(g, me, ParticipationStatus.REJECTED);
         Participation latest = participate(g, me, ParticipationStatus.PENDING);
@@ -171,11 +185,14 @@ class MyActivityIntegrationTest {
     }
 
     @Test
-    void 지난내역은_최근_모임부터_보인다() throws Exception {
-        gathering(me, NOW.minusSeconds(10800));
-        Gathering recent = gathering(me, NOW.minusSeconds(7200));
+    void 지난내역은_최근_모임부터_같은_시각이면_먼저_만든_순으로_보인다() throws Exception {
+        Gathering older = gathering(me, NOW.minusSeconds(10800));
+        Gathering first = gathering(me, NOW.minusSeconds(7200));
+        Gathering second = gathering(me, NOW.minusSeconds(7200));
         page("past", 0).andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].gatheringId").value(recent.getId()));
+                .andExpect(jsonPath("$.data.content[0].gatheringId").value(first.getId()));
+        page("past", 1).andExpect(jsonPath("$.data.content[0].gatheringId").value(second.getId()));
+        page("past", 2).andExpect(jsonPath("$.data.content[0].gatheringId").value(older.getId()));
     }
 
     @ParameterizedTest

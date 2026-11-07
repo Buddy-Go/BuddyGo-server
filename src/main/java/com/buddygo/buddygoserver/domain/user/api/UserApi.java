@@ -29,10 +29,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface UserApi {
 
     @Operation(summary = "내 활동 내역", description = """
-            role=host(내가 개설) 또는 participant(다른 사람 모임에 신청). 모임당 최신 신청 한 건을 반환한다.
-            period=upcoming: 아직 끝나지 않은 대기·확정 모임(진행 중 포함), 시작 시각 오름차순.
-            period=past: 종료·모임 취소·신청 거절·신청 취소·나가기 내역, 시작 시각 내림차순.
-            같은 시각이면 참여 ID 순. 삭제된 모임은 제외한다. 출결 기록이 없으면 결과를 임의로 판정하지 않는다.
+            role=host(내가 개설) 또는 participant(다른 사람 모임에 대기·확정). 대기·확정 신청만 보여주고
+            거절·신청 취소·나가기와 삭제된 모임은 빠진다.
+            period=upcoming: 모집중·마감·진행중 모임, 시작 시각 오름차순.
+            period=past: 종료·취소된 모임, 시작 시각 내림차순.
+            같은 시각이면 참여 ID 오름차순. 출결 기록이 없으면 결과를 임의로 판정하지 않는다.
             sport는 생략하거나 GYM(gym). 현재 헬스만 지원한다. page는 0부터, size는 1~100(기본 20).""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공. 내역이 없으면 content는 빈 배열"),
