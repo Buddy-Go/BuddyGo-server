@@ -4,16 +4,13 @@ import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import com.buddygo.buddygoserver.global.security.jwt.JwtProperties;
 import com.buddygo.buddygoserver.global.security.jwt.TokenType;
-import com.buddygo.buddygoserver.support.AuthTestController;
+import com.buddygo.buddygoserver.support.IntegrationTest;
 import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,7 +20,6 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -50,17 +46,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 로컬 PostgreSQL·Redis(docker-compose.local.yml)가 떠 있어야 한다.
  * DB 는 테스트마다 롤백되고, Redis 는 테스트 전용 DB(15번)를 매번 비운다.
  */
-@SpringBootTest(properties = "spring.data.redis.database=15")
-@AutoConfigureMockMvc
-@Import(AuthTestController.class)
 @Transactional
-class AuthIntegrationTest {
+class AuthIntegrationTest extends IntegrationTest {
 
     private static final String EMAIL = "buddy@example.com";
     private static final String PASSWORD = "password123";
 
     @Autowired MockMvc mockMvc;
-    @MockitoSpyBean UserRepository userRepository;
+    @Autowired UserRepository userRepository; // 스파이(IntegrationTest 에서 선언)
     @Autowired StringRedisTemplate redisTemplate;
     @Autowired JwtEncoder jwtEncoder;
     @Autowired JwtProperties jwtProperties;

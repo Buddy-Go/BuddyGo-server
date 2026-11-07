@@ -20,6 +20,7 @@ import com.buddygo.buddygoserver.domain.gathering.scheduler.GatheringStatusSched
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
+import com.buddygo.buddygoserver.support.IntegrationTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -28,7 +29,6 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -43,9 +43,8 @@ import static org.assertj.core.api.Assertions.entry;
  * 로컬 PostgreSQL(docker-compose.local.yml)이 떠 있어야 한다. DB 는 테스트마다 롤백된다.
  * 스케줄 트리거는 테스트에서 꺼져 있고(build.gradle), 시각을 넘겨 {@code runAt} 을 직접 호출한다.
  */
-@SpringBootTest
 @Transactional
-class GatheringStatusSchedulerTest {
+class GatheringStatusSchedulerTest extends IntegrationTest {
 
     static final Instant NOW = Instant.parse("2026-11-10T00:00:00Z");
     static final Instant START = NOW.plus(Duration.ofHours(3));
