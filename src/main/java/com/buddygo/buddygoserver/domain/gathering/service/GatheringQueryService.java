@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -62,8 +63,7 @@ public class GatheringQueryService {
                 gatheringLikeRepository.existsById(new GatheringLikeId(viewerId, gatheringId)));
 
         List<MemberResponse> members = canSeeMembers(gathering, role)
-                ? participationRepository.findConfirmedWithUser(gatheringId).stream()
-                        .map(p -> MemberResponse.of(p, hostId)).toList()
+                ? confirmedMembers(gathering)
                 : null;
 
         // 호스트 본인 기록과 비교하는 것은 의미가 없어 판정하지 않는다
@@ -79,6 +79,27 @@ public class GatheringQueryService {
                 participationRepository.countByGatheringIdAndStatus(gatheringId, ParticipationStatus.CONFIRMED),
                 isHost ? participationRepository.countByGatheringIdAndStatus(gatheringId, ParticipationStatus.PENDING) : null,
                 reviewRepository.countByTargetId(hostId), gym, viewer, members, cancellation);
+    }
+
+    /** 상세 화면과 같은 공개 규칙을 사용하는 확정 명단 전용 조회. */
+    public List<MemberResponse> getParticipants(Long gatheringId, Long viewerId) {
+        Gathering gathering = gatheringRepository.findWithHostAndPlace(gatheringId)
+                .orElseThrow(() -> new CustomException(GatheringErrorType.NOT_FOUND));
+        ViewerRole role = gathering.isHostedBy(viewerId) ? ViewerRole.HOST
+                : participationRepository.findActive(gatheringId, viewerId)
+                        .filter(Participation::isConfirmed)
+                        .map(p -> ViewerRole.PARTICIPANT).orElse(ViewerRole.NONE);
+        if (!canSeeMembers(gathering, role)) {
+            throw new CustomException(GatheringErrorType.PARTICIPANTS_NOT_VISIBLE);
+        }
+        return confirmedMembers(gathering);
+    }
+
+    private List<MemberResponse> confirmedMembers(Gathering gathering) {
+        return participationRepository.findConfirmedWithUser(gathering.getId()).stream()
+                .map(p -> MemberResponse.of(p, gathering.getHost().getId()))
+                .sorted(Comparator.comparing(MemberResponse::host).reversed())
+                .toList();
     }
 
     private static boolean canSeeMembers(Gathering gathering, ViewerRole role) {
