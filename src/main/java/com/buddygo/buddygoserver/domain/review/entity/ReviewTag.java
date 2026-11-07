@@ -1,5 +1,6 @@
 package com.buddygo.buddygoserver.domain.review.entity;
 
+import com.buddygo.buddygoserver.domain.review.enums.ReviewTagType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -22,4 +23,11 @@ public class ReviewTag {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "review_id")
     private Review review;
+
+    public static ReviewTag of(Review review, ReviewTagType tag) {
+        return ReviewTag.builder()
+                .id(new ReviewTagId(review.getId(), tag.name()))
+                .review(review)
+                .build();
+    }
 }

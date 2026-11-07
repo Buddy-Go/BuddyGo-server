@@ -42,4 +42,14 @@ public class Review extends BaseCreatedEntity {
 
     @Column(length = 200)
     private String comment;
+
+    public static Review of(Gathering gathering, User evaluator, User target, ReviewRating rating, String comment) {
+        return Review.builder()
+                .gathering(gathering)
+                .evaluator(evaluator)
+                .target(target)
+                .rating(rating)
+                .comment(comment)
+                .build();
+    }
 }
