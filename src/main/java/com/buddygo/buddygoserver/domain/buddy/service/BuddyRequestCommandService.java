@@ -3,6 +3,7 @@ package com.buddygo.buddygoserver.domain.buddy.service;
 import com.buddygo.buddygoserver.domain.buddy.dto.response.BuddyRequestResponse;
 import com.buddygo.buddygoserver.domain.buddy.entity.Buddy;
 import com.buddygo.buddygoserver.domain.buddy.entity.BuddyRequest;
+import com.buddygo.buddygoserver.domain.buddy.enums.BuddyRequestStatus;
 import com.buddygo.buddygoserver.domain.buddy.exception.BuddyErrorType;
 import com.buddygo.buddygoserver.domain.buddy.repository.BuddyRepository;
 import com.buddygo.buddygoserver.domain.buddy.repository.BuddyRequestRepository;
@@ -49,8 +50,8 @@ public class BuddyRequestCommandService {
         }
         Optional<BuddyRequest> reverse = buddyRequestRepository.findPending(receiverId, senderId);
         if (reverse.isPresent()) {
-            accept(reverse.get(), pair, Instant.now(clock));
-            return BuddyRequestResponse.from(reverse.get());
+            accept(reverse.get(), pair);
+            return BuddyRequestResponse.of(reverse.get().getId(), BuddyRequestStatus.ACCEPTED);
         }
         if (buddyRequestRepository.findPending(senderId, receiverId).isPresent()) {
             throw new CustomException(BuddyErrorType.REQUEST_DUPLICATED);
@@ -60,26 +61,26 @@ public class BuddyRequestCommandService {
         return BuddyRequestResponse.from(request);
     }
 
-    /** 보낸 사람만, 대기 중일 때만 취소한다. */
+    /** 보낸 사람만, 대기 중일 때만 취소한다. 신청 행은 남기지 않는다. */
     public BuddyRequestResponse cancel(Long userId, Long requestId) {
         BuddyRequest request = lockAndLoad(userId, requestId);
         if (!request.isSentBy(userId)) {
             throw new CustomException(BuddyErrorType.REQUEST_NOT_FOUND);
         }
         requirePending(request);
-        request.cancel(Instant.now(clock));
-        return BuddyRequestResponse.from(request);
+        buddyRequestRepository.delete(request);
+        return BuddyRequestResponse.of(requestId, BuddyRequestStatus.CANCELED);
     }
 
-    /** 받은 사람만. 수락하면 두 방향 버디 행이 생긴다. */
+    /** 받은 사람만. 수락하면 두 방향 버디 행이 생기고, 신청 행은 지운다(버디 행이 기록이다). */
     public BuddyRequestResponse accept(Long userId, Long requestId) {
         BuddyRequest request = lockAndLoad(userId, requestId);
         if (!request.isReceivedBy(userId)) {
             throw new CustomException(BuddyErrorType.REQUEST_NOT_FOUND);
         }
         requirePending(request);
-        accept(request, new Pair(request.getReceiver(), request.getSender()), Instant.now(clock));
-        return BuddyRequestResponse.from(request);
+        accept(request, new Pair(request.getReceiver(), request.getSender()));
+        return BuddyRequestResponse.of(requestId, BuddyRequestStatus.ACCEPTED);
     }
 
     /** 받은 사람만. 거절된 사람은 다시 신청할 수 있다. */
@@ -93,8 +94,8 @@ public class BuddyRequestCommandService {
         return BuddyRequestResponse.from(request);
     }
 
-    private void accept(BuddyRequest request, Pair pair, Instant now) {
-        request.accept(now);
+    private void accept(BuddyRequest request, Pair pair) {
+        buddyRequestRepository.delete(request);
         User me = pair.me();
         User other = pair.other();
         buddyRepository.saveAll(List.of(Buddy.of(me, other), Buddy.of(other, me)));

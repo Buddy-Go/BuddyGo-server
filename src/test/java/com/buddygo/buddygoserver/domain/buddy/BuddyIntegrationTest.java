@@ -166,15 +166,19 @@ class BuddyIntegrationTest {
             flushAndClear();
             assertThat(buddyRepository.areBuddies(alice.getId(), bob.getId())).isTrue();
             assertThat(buddyRepository.areBuddies(bob.getId(), alice.getId())).isTrue();
-            assertThat(buddyRequestRepository.findAll()).filteredOn(r -> isBetween(r, alice, bob))
-                    .singleElement().extracting(BuddyRequest::getStatus).isEqualTo(BuddyRequestStatus.ACCEPTED);
+            assertThat(buddyRequestRepository.findAll()).filteredOn(r -> isBetween(r, alice, bob)).isEmpty();
         }
 
         @Test
-        void 거절당해도_다시_신청할_수_있다() throws Exception {
+        void 거절은_기록이_남고_다시_신청할_수_있다() throws Exception {
             workedOut(PAST, alice, bob);
-            reject(bob, idOf(send(alice, bob))).andExpect(status().isOk())
+            long requestId = idOf(send(alice, bob));
+            reject(bob, requestId).andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.status").value("REJECTED"));
+            accept(bob, requestId).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("B004"));
+            flushAndClear();
+            assertThat(buddyRequestRepository.findById(requestId)).get()
+                    .extracting(BuddyRequest::getStatus).isEqualTo(BuddyRequestStatus.REJECTED);
 
             send(alice, bob).andExpect(status().isCreated()).andExpect(jsonPath("$.data.status").value("PENDING"));
         }
@@ -191,7 +195,11 @@ class BuddyIntegrationTest {
             cancel(bob, requestId).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B001"));
             cancel(carol, requestId).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B001"));
             cancel(alice, requestId).andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("CANCELED"));
-            cancel(alice, requestId).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("B004"));
+            cancel(alice, requestId).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B001"));
+
+            flushAndClear();
+            assertThat(buddyRequestRepository.findById(requestId)).isEmpty();
+            send(alice, bob).andExpect(status().isCreated()).andExpect(jsonPath("$.data.status").value("PENDING"));
         }
 
         @Test
@@ -201,10 +209,11 @@ class BuddyIntegrationTest {
 
             accept(alice, requestId).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B001"));
             accept(bob, requestId).andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("ACCEPTED"));
-            accept(bob, requestId).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("B004"));
-            reject(bob, requestId).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("B004"));
+            accept(bob, requestId).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B001"));
+            reject(bob, requestId).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("B001"));
 
             flushAndClear();
+            assertThat(buddyRequestRepository.findById(requestId)).isEmpty();
             assertThat(buddyRepository.areBuddies(alice.getId(), bob.getId())).isTrue();
             assertThat(buddyRepository.areBuddies(bob.getId(), alice.getId())).isTrue();
         }

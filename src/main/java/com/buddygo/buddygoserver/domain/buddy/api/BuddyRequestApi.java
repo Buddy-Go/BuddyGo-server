@@ -47,20 +47,20 @@ public interface BuddyRequestApi {
     @GetMapping("/received")
     ResponseEntity<SuccessResponse<List<ReceivedBuddyRequestResponse>>> getReceived(@LoginUserId Long userId);
 
-    @Operation(summary = "보낸 버디 신청 취소", description = "보낸 사람만, 대기 중일 때만.")
+    @Operation(summary = "보낸 버디 신청 취소", description = "보낸 사람만, 대기 중일 때만. 취소한 신청은 남지 않는다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "취소 성공(CANCELED)"),
-            @ApiResponse(responseCode = "404", description = "B001 없거나 내가 보낸 신청이 아님"),
-            @ApiResponse(responseCode = "409", description = "B004 대기 중이 아님")
+            @ApiResponse(responseCode = "404", description = "B001 없거나(이미 수락·취소됨 포함) 내가 보낸 신청이 아님"),
+            @ApiResponse(responseCode = "409", description = "B004 이미 거절된 신청")
     })
     @DeleteMapping("/{requestId}")
     ResponseEntity<SuccessResponse<BuddyRequestResponse>> cancel(@LoginUserId Long userId, @PathVariable Long requestId);
 
-    @Operation(summary = "버디 신청 수락", description = "받은 사람만. 수락하면 서로 버디가 되고 서로의 모임 활동을 볼 수 있다.")
+    @Operation(summary = "버디 신청 수락", description = "받은 사람만. 수락하면 서로 버디가 되고 서로의 모임 활동을 볼 수 있다. 수락한 신청은 남지 않는다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수락 성공(ACCEPTED)"),
-            @ApiResponse(responseCode = "404", description = "B001 없거나 내가 받은 신청이 아님"),
-            @ApiResponse(responseCode = "409", description = "B004 대기 중이 아님")
+            @ApiResponse(responseCode = "404", description = "B001 없거나(이미 수락·취소됨 포함) 내가 받은 신청이 아님"),
+            @ApiResponse(responseCode = "409", description = "B004 이미 거절된 신청")
     })
     @PostMapping("/{requestId}/accept")
     ResponseEntity<SuccessResponse<BuddyRequestResponse>> accept(@LoginUserId Long userId, @PathVariable Long requestId);
@@ -68,8 +68,8 @@ public interface BuddyRequestApi {
     @Operation(summary = "버디 신청 거절", description = "받은 사람만. 거절된 사람은 다시 신청할 수 있다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "거절 성공(REJECTED)"),
-            @ApiResponse(responseCode = "404", description = "B001 없거나 내가 받은 신청이 아님"),
-            @ApiResponse(responseCode = "409", description = "B004 대기 중이 아님")
+            @ApiResponse(responseCode = "404", description = "B001 없거나(이미 수락·취소됨 포함) 내가 받은 신청이 아님"),
+            @ApiResponse(responseCode = "409", description = "B004 이미 거절된 신청")
     })
     @PostMapping("/{requestId}/reject")
     ResponseEntity<SuccessResponse<BuddyRequestResponse>> reject(@LoginUserId Long userId, @PathVariable Long requestId);
