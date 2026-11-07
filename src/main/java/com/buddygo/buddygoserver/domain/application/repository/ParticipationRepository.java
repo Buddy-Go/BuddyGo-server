@@ -103,4 +103,12 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             where p.gathering.id = :gatheringId
               and p.status = com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.PENDING""")
     int rejectAllPending(Long gatheringId, RejectReason reason, Instant now);
+
+    /**
+     * 참여 행을 지운다(신청자의 대기 신청 취소). 신청 시점 스냅샷은 DB FK CASCADE 로 함께 지워지므로,
+     * 영속성 컨텍스트에 남은 자식이 지워진 참여를 가리킨 채 flush 되지 않도록 벌크 삭제 후 컨텍스트를 비운다.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from Participation p where p.id = :id")
+    void deleteWithChildren(Long id);
 }

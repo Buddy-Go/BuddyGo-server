@@ -82,11 +82,6 @@ public class Participation {
                 .build();
     }
 
-    /** 대기 중인 신청을 신청자가 취소한다. 매너온도 영향은 없다. */
-    public void cancel() {
-        this.status = ParticipationStatus.CANCELED;
-    }
-
     /** 호스트 수락. 즉시 확정 인원에 반영된다. */
     public void confirm(Instant now) {
         this.status = ParticipationStatus.CONFIRMED;

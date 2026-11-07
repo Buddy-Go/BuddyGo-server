@@ -121,7 +121,7 @@ class NoticeIntegrationTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = ParticipationStatus.class, names = {"PENDING", "LEFT", "CANCELED", "REJECTED"})
+    @EnumSource(value = ParticipationStatus.class, names = {"PENDING", "LEFT", "REJECTED"})
     void 확정자가_아니면_조회와_댓글_접근불가(ParticipationStatus state) throws Exception {
         participation(outsider, state);
         Notice n = notice(gathering);

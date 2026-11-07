@@ -40,7 +40,7 @@ public interface ApplicationApi {
             @LoginUserId Long userId, @PathVariable Long gatheringId,
             @Valid @RequestBody(required = false) ApplyRequest request);
 
-    @Operation(summary = "참여 신청 취소", description = "대기 중인 내 신청을 취소한다. 매너온도 영향은 없고, 모집중이면 다시 신청할 수 있다.")
+    @Operation(summary = "참여 신청 취소", description = "대기 중인 내 신청을 취소한다. 신청 기록은 남지 않고 매너온도 영향도 없으며, 모집중이면 다시 신청할 수 있다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "취소 성공"),
             @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임 · AP001 대기·확정 중인 신청 없음"),
