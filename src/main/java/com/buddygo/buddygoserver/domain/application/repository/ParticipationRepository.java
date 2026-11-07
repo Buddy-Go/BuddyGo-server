@@ -36,12 +36,13 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
                                com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.CONFIRMED)""")
     Optional<Participation> findActive(Long gatheringId, Long userId);
 
+    /** 확정 명단(호스트 포함). 호스트가 먼저, 나머지는 확정 시각·참여 ID 순이다. */
     @Query("""
             select p from Participation p
             join fetch p.user
             where p.gathering.id = :gatheringId
               and p.status = com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.CONFIRMED
-            order by p.decidedAt, p.id""")
+            order by case when p.user.id = p.gathering.host.id then 0 else 1 end, p.decidedAt, p.id""")
     List<Participation> findConfirmedWithUser(Long gatheringId);
 
     @Query("""
