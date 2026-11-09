@@ -18,7 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 시간에 따른 모임 상태 전이 (서비스 규칙 정의서 5장 · 6장 · 7장). {@code GatheringStatusScheduler} 가 후보 ID 를 받아
@@ -103,14 +105,19 @@ public class GatheringStatusService {
         insertNoShows(gathering);
     }
 
-    /** 종료 시각이 되면 종료한다. 노쇼 처리가 빠졌더라도 종료 전에 한 번 더 남긴다(이미 남은 기록은 건너뛴다). */
+    /**
+     * 종료 시각이 되면 종료한다. 노쇼 처리가 빠졌더라도 종료 전에 한 번 더 남긴다(이미 남은 기록은 건너뛴다).
+     * 호스트가 체크인(정상·지각)했으면 호스트 출석 보너스를 준다(규칙 11장). 취소된 모임은 여기 오지 않는다.
+     */
     public void finish(Long gatheringId, Instant now) {
         Gathering gathering = lock(gatheringId);
         if (gathering == null || gathering.getStatus() != GatheringStatus.IN_PROGRESS
                 || now.isBefore(gathering.getEndAt())) {
             return;
         }
-        insertNoShows(gathering);
+        List<Long> noShowUserIds = checkInRepository.insertNoShows(gathering.getId());
+        Long hostId = checkInRepository.hostAttended(gathering.getId()) ? gathering.getHost().getId() : null;
+        applyAttendanceResults(gathering, noShowUserIds, hostId);
         gathering.finish();
         // TODO 모임 종료 · 평가 가능 알림(체크인한 사람)
     }
@@ -120,12 +127,29 @@ public class GatheringStatusService {
      * (모임 → 사용자 순서는 평가·지각 체크인과 같다).
      */
     private void insertNoShows(Gathering gathering) {
-        List<Long> noShowUserIds = checkInRepository.insertNoShows(gathering.getId());
-        if (noShowUserIds.isEmpty()) {
+        applyAttendanceResults(gathering, checkInRepository.insertNoShows(gathering.getId()), null);
+    }
+
+    /**
+     * 새로 노쇼가 된 사람에게 페널티를, 출석한 호스트(attendedHostId, 없으면 null)에게 보너스를 준다.
+     * 사용자 행은 한 번에 id 오름차순으로 잠근다. 따로 잠그면 호스트가 노쇼한 사람보다 id 가 작을 때 순서가 어긋난다.
+     * 호스트는 출석했으면 노쇼가 아니므로 두 집합은 겹치지 않는다.
+     */
+    private void applyAttendanceResults(Gathering gathering, List<Long> noShowUserIds, Long attendedHostId) {
+        Set<Long> userIds = new HashSet<>(noShowUserIds);
+        if (attendedHostId != null) {
+            userIds.add(attendedHostId);
+        }
+        if (userIds.isEmpty()) {
             return;
         }
-        for (User user : userRepository.findAllByIdsForUpdate(noShowUserIds)) {
-            mannerTemperatureService.applyNoShow(user, gathering.getId());
+        Set<Long> noShows = Set.copyOf(noShowUserIds);
+        for (User user : userRepository.findAllByIdsForUpdate(userIds)) {
+            if (noShows.contains(user.getId())) {
+                mannerTemperatureService.applyNoShow(user, gathering.getId());
+            } else {
+                mannerTemperatureService.applyHostAttendance(user, gathering.getId());
+            }
         }
     }
 

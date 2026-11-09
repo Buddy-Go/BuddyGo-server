@@ -45,12 +45,12 @@ public class MannerTemperatureService {
 
     /** 노쇼 페널티. 모임마다 한 번만 부른다(새로 노쇼가 된 사람만). */
     public BigDecimal applyNoShow(User lockedUser, Long gatheringId) {
-        return applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.NO_SHOW, penalty().noShow());
+        return applyGatheringChange(lockedUser, gatheringId, MannerTemperatureReason.NO_SHOW, penalty().noShow());
     }
 
     /** 지각 페널티. 지각 체크인이 저장된 트랜잭션에서 부른다. */
     public BigDecimal applyLate(User lockedUser, Long gatheringId) {
-        return applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.LATE, penalty().late());
+        return applyGatheringChange(lockedUser, gatheringId, MannerTemperatureReason.LATE, penalty().late());
     }
 
     /**
@@ -59,19 +59,28 @@ public class MannerTemperatureService {
      */
     public BigDecimal applyLeave(User lockedUser, Long gatheringId, boolean afterDeadline) {
         return afterDeadline
-                ? applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.LEFT_AFTER_DEADLINE,
+                ? applyGatheringChange(lockedUser, gatheringId, MannerTemperatureReason.LEFT_AFTER_DEADLINE,
                         penalty().leaveAfterDeadline())
-                : applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.LEFT_BEFORE_DEADLINE,
+                : applyGatheringChange(lockedUser, gatheringId, MannerTemperatureReason.LEFT_BEFORE_DEADLINE,
                         penalty().leaveBeforeDeadline());
     }
 
     /** 호스트 취소 페널티. 마감 후(정원이 찬 상태) 취소가 모집중 취소보다 크다. */
     public BigDecimal applyHostCancel(User lockedHost, Long gatheringId, boolean wasClosed) {
         return wasClosed
-                ? applyGatheringPenalty(lockedHost, gatheringId, MannerTemperatureReason.HOST_CANCELED_CLOSED,
+                ? applyGatheringChange(lockedHost, gatheringId, MannerTemperatureReason.HOST_CANCELED_CLOSED,
                         penalty().hostCancelClosed())
-                : applyGatheringPenalty(lockedHost, gatheringId, MannerTemperatureReason.HOST_CANCELED_RECRUITING,
+                : applyGatheringChange(lockedHost, gatheringId, MannerTemperatureReason.HOST_CANCELED_RECRUITING,
                         penalty().hostCancelRecruiting());
+    }
+
+    /**
+     * 호스트 출석 보너스. 종료된 모임에서 호스트가 체크인(정상·지각)했으면 종료할 때 한 번 준다. 참가자가 모두 노쇼여도 준다.
+     * 지각한 호스트는 지각 페널티와 보너스를 둘 다 받는다.
+     */
+    public BigDecimal applyHostAttendance(User lockedHost, Long gatheringId) {
+        return applyGatheringChange(lockedHost, gatheringId, MannerTemperatureReason.HOST_ATTENDED,
+                properties.bonus().hostAttendance());
     }
 
     private MannerTemperatureProperties.Penalty penalty() {
@@ -79,13 +88,13 @@ public class MannerTemperatureService {
     }
 
     /**
-     * 모임에 걸린 시스템 변경. 모임당 한 번뿐인 사유는 이력을 먼저 ON CONFLICT 로 넣고, 들어갔을 때만 온도에 더한다.
+     * 모임에 걸린 시스템 변경(페널티·보너스). 모임당 한 번뿐인 사유는 이력을 먼저 ON CONFLICT 로 넣고, 들어갔을 때만 온도에 더한다.
      * 같은 모임·사유의 이력이 이미 있으면(호출 경로가 두 번 부른 버그) 아무것도 바꾸지 않고 경고만 남긴다. 예외로 두면
      * 스케줄러에서는 그 모임의 노쇼 기록·종료까지 롤백되어 매 주기 실패한다.
      *
      * @return 실제로 더한 변화량(중복이면 0)
      */
-    private BigDecimal applyGatheringPenalty(User lockedUser, Long gatheringId, MannerTemperatureReason reason,
+    private BigDecimal applyGatheringChange(User lockedUser, Long gatheringId, MannerTemperatureReason reason,
                                              BigDecimal score) {
         BigDecimal delta = curve.deltaOf(lockedUser.getExactMannerTemperature(), score);
         if (reason.isOncePerGathering()) {

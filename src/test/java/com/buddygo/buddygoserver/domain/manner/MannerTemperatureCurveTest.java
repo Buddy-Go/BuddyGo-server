@@ -17,7 +17,8 @@ class MannerTemperatureCurveTest {
     final MannerTemperatureCurve curve =
             new MannerTemperatureCurve(new MannerTemperatureProperties(new BigDecimal("36.5"), new BigDecimal("100"),
                     new MannerTemperatureProperties.Penalty(new BigDecimal("-5"), new BigDecimal("-1"),
-                            new BigDecimal("-2"), new BigDecimal("-5"), new BigDecimal("-2"), new BigDecimal("-5"))));
+                            new BigDecimal("-2"), new BigDecimal("-5"), new BigDecimal("-2"), new BigDecimal("-5")),
+                    new MannerTemperatureProperties.Bonus(new BigDecimal("1.0"))));
     final ReviewProperties.Score score = new ReviewProperties.Score(new BigDecimal("0.5"), BigDecimal.ZERO,
             new BigDecimal("-0.5"), new BigDecimal("0.1"), new BigDecimal("-0.1"));
 

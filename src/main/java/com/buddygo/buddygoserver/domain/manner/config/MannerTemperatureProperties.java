@@ -8,17 +8,27 @@ import java.util.stream.Stream;
 /**
  * 매너온도 곡선과 시스템 페널티. neutral 은 시작값이자 기준점이고, 오를 때는 max 에, 내릴 때는 0 에 가까울수록 변화가 줄어든다.
  * neutral 은 users.manner_temperature 의 DB·엔티티 기본값(36.5)과 같아야 한다.
- * 페널티는 곡선에 넣기 전 점수다(음수).
+ * 페널티·보너스는 곡선에 넣기 전 점수다.
  */
 @ConfigurationProperties("manner-temperature")
-public record MannerTemperatureProperties(BigDecimal neutral, BigDecimal max, Penalty penalty) {
+public record MannerTemperatureProperties(BigDecimal neutral, BigDecimal max, Penalty penalty, Bonus bonus) {
 
     public MannerTemperatureProperties {
         if (neutral == null || max == null || neutral.signum() <= 0 || max.compareTo(neutral) <= 0) {
             throw new IllegalStateException("manner-temperature 는 0 < neutral < max 여야 합니다.");
         }
-        if (penalty == null) {
-            throw new IllegalStateException("manner-temperature.penalty 설정이 필요합니다.");
+        if (penalty == null || bonus == null) {
+            throw new IllegalStateException("manner-temperature.penalty, manner-temperature.bonus 설정이 필요합니다.");
+        }
+    }
+
+    /** 규칙 11장 호스트 혜택. 곡선에 넣기 전 점수다(양수). */
+    public record Bonus(BigDecimal hostAttendance) {
+
+        public Bonus {
+            if (hostAttendance == null || hostAttendance.signum() <= 0) {
+                throw new IllegalStateException("manner-temperature.bonus.host-attendance 는 양수여야 합니다.");
+            }
         }
     }
 
