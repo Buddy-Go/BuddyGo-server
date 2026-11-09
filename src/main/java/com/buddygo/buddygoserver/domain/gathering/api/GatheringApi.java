@@ -118,7 +118,7 @@ public interface GatheringApi {
     ResponseEntity<SuccessResponse<Void>> delete(@LoginUserId Long userId, @PathVariable Long gatheringId);
 
     @Operation(summary = "모임 취소(방폭)",
-            description = "확정 참가자(호스트 제외)가 1명 이상일 때만. 사유(100자)는 확정 참가자에게 전달되고 대기 신청은 자동 거절된다.")
+            description = "확정 참가자(호스트 제외)가 1명 이상일 때만. 사유(100자)는 확정 참가자에게 전달되고 대기 신청은 자동 거절된다. 호스트 매너온도가 내려가고, 마감(정원이 찬) 뒤 취소가 모집중 취소보다 크게 내려간다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "취소 성공"),
             @ApiResponse(responseCode = "400", description = "G002 사유 누락·100자 초과"),

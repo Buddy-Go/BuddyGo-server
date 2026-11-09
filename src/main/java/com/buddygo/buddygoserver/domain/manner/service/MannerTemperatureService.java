@@ -45,28 +45,58 @@ public class MannerTemperatureService {
 
     /** 노쇼 페널티. 모임마다 한 번만 부른다(새로 노쇼가 된 사람만). */
     public BigDecimal applyNoShow(User lockedUser, Long gatheringId) {
-        return applyAttendance(lockedUser, gatheringId, MannerTemperatureReason.NO_SHOW, properties.penalty().noShow());
+        return applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.NO_SHOW, penalty().noShow());
     }
 
     /** 지각 페널티. 지각 체크인이 저장된 트랜잭션에서 부른다. */
     public BigDecimal applyLate(User lockedUser, Long gatheringId) {
-        return applyAttendance(lockedUser, gatheringId, MannerTemperatureReason.LATE, properties.penalty().late());
+        return applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.LATE, penalty().late());
     }
 
     /**
-     * 이력을 먼저 넣고, 들어갔을 때만 온도에 더한다. 같은 모임·사유의 이력이 이미 있으면(호출 경로가 두 번 부른 버그)
-     * 아무것도 바꾸지 않고 경고만 남긴다. 예외로 두면 스케줄러에서는 그 모임의 노쇼 기록·종료까지 롤백되어 매 주기 실패한다.
+     * 마감된 모임에서 나간 확정 참가자 페널티. 데드라인 후(방폭)가 더 크다. 모집중인 모임에서 나가면 부르지 않는다.
+     * 데드라인 전 나가기는 다시 들어와 또 나가면 그때마다 들어간다.
+     */
+    public BigDecimal applyLeave(User lockedUser, Long gatheringId, boolean afterDeadline) {
+        return afterDeadline
+                ? applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.LEFT_AFTER_DEADLINE,
+                        penalty().leaveAfterDeadline())
+                : applyGatheringPenalty(lockedUser, gatheringId, MannerTemperatureReason.LEFT_BEFORE_DEADLINE,
+                        penalty().leaveBeforeDeadline());
+    }
+
+    /** 호스트 취소 페널티. 마감 후(정원이 찬 상태) 취소가 모집중 취소보다 크다. */
+    public BigDecimal applyHostCancel(User lockedHost, Long gatheringId, boolean wasClosed) {
+        return wasClosed
+                ? applyGatheringPenalty(lockedHost, gatheringId, MannerTemperatureReason.HOST_CANCELED_CLOSED,
+                        penalty().hostCancelClosed())
+                : applyGatheringPenalty(lockedHost, gatheringId, MannerTemperatureReason.HOST_CANCELED_RECRUITING,
+                        penalty().hostCancelRecruiting());
+    }
+
+    private MannerTemperatureProperties.Penalty penalty() {
+        return properties.penalty();
+    }
+
+    /**
+     * 모임에 걸린 시스템 변경. 모임당 한 번뿐인 사유는 이력을 먼저 ON CONFLICT 로 넣고, 들어갔을 때만 온도에 더한다.
+     * 같은 모임·사유의 이력이 이미 있으면(호출 경로가 두 번 부른 버그) 아무것도 바꾸지 않고 경고만 남긴다. 예외로 두면
+     * 스케줄러에서는 그 모임의 노쇼 기록·종료까지 롤백되어 매 주기 실패한다.
      *
      * @return 실제로 더한 변화량(중복이면 0)
      */
-    private BigDecimal applyAttendance(User lockedUser, Long gatheringId, MannerTemperatureReason reason,
-                                       BigDecimal score) {
+    private BigDecimal applyGatheringPenalty(User lockedUser, Long gatheringId, MannerTemperatureReason reason,
+                                             BigDecimal score) {
         BigDecimal delta = curve.deltaOf(lockedUser.getExactMannerTemperature(), score);
-        boolean inserted = !mannerTemperatureLogRepository.insertAttendanceIgnoringDuplicate(
-                lockedUser.getId(), delta, reason.name(), gatheringId, Instant.now(clock)).isEmpty();
-        if (!inserted) {
-            log.warn("[Manner Duplicate] {} user={} gathering={} 이미 반영됨, 건너뜀", reason, lockedUser.getId(), gatheringId);
-            return BigDecimal.ZERO;
+        if (reason.isOncePerGathering()) {
+            boolean inserted = !mannerTemperatureLogRepository.insertOncePerGatheringIgnoringDuplicate(
+                    lockedUser.getId(), delta, reason.name(), gatheringId, Instant.now(clock)).isEmpty();
+            if (!inserted) {
+                log.warn("[Manner Duplicate] {} user={} gathering={} 이미 반영됨, 건너뜀", reason, lockedUser.getId(), gatheringId);
+                return BigDecimal.ZERO;
+            }
+        } else {
+            mannerTemperatureLogRepository.save(MannerTemperatureLog.ofGathering(lockedUser, delta, reason, gatheringId));
         }
         lockedUser.applyMannerDelta(delta);
         return delta;
