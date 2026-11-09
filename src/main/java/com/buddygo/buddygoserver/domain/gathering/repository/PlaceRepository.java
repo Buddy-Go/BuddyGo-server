@@ -21,4 +21,14 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
             RETURNING id""")
     Long upsertKakaoPlace(String kakaoPlaceId, String name, String roadAddress, String jibunAddress,
                           String regionCode, double latitude, double longitude, Instant createdAt);
+
+    /**
+     * 장소에서 좌표까지의 거리(m, 반올림). 탐색 거리순과 같은 식이다: geography 로 바꿔 구면 거리를 재고,
+     * ST_MakePoint 는 (경도, 위도) 순서다.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT CAST(ROUND(ST_Distance(p.location::geography,
+                        ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography)) AS INTEGER)
+            FROM places p WHERE p.id = :placeId""")
+    int distanceMeters(Long placeId, double latitude, double longitude);
 }

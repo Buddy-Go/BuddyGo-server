@@ -2,6 +2,8 @@ package com.buddygo.buddygoserver.domain.checkin.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import com.buddygo.buddygoserver.domain.checkin.enums.Attendance;
+
 import java.time.Duration;
 import java.time.Instant;
 
@@ -23,8 +25,23 @@ public record CheckInProperties(
         }
     }
 
-    /** 이 시각까지 체크인하지 않으면 노쇼다. */
+    /** 체크인 열림 시각 */
+    public Instant openAt(Instant startAt) {
+        return startAt.minus(openBeforeStart);
+    }
+
+    /** 이 시각부터 체크인하면 지각이다. */
+    public Instant lateFrom(Instant startAt) {
+        return startAt.plus(lateAfterStart);
+    }
+
+    /** 이 시각까지 체크인하지 않으면 노쇼다. 체크인 창은 [openAt, noShowAt) 이다. */
     public Instant noShowAt(Instant startAt) {
         return startAt.plus(noShowAfterStart);
+    }
+
+    /** 체크인 창 안의 시각을 정상·지각으로 나눈다. 창 밖인지는 부르는 쪽이 먼저 확인한다. */
+    public Attendance attendanceAt(Instant startAt, Instant checkedInAt) {
+        return checkedInAt.isBefore(lateFrom(startAt)) ? Attendance.ON_TIME : Attendance.LATE;
     }
 }
