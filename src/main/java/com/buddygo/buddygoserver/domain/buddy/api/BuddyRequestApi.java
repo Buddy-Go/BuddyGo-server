@@ -42,7 +42,7 @@ public interface BuddyRequestApi {
             @LoginUserId Long userId, @Valid @RequestBody BuddyRequestCreateRequest request);
 
     @Operation(summary = "받은 버디 신청 목록",
-            description = "대기 중인 받은 신청(최근 순). 보낸 사람의 닉네임·매너온도·참여 횟수(체크인한 모임 수)를 담는다. 개수는 목록 길이로 쓴다.")
+            description = "대기 중인 받은 신청(최근 순). 보낸 사람의 닉네임·매너온도·참여 횟수(남이 연 모임에서 체크인한 수)를 담는다. 개수는 목록 길이로 쓴다.")
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/received")
     ResponseEntity<SuccessResponse<List<ReceivedBuddyRequestResponse>>> getReceived(@LoginUserId Long userId);
