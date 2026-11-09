@@ -60,6 +60,12 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
               and p.status = com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.CONFIRMED""")
     List<Long> findConfirmedUserIds(Long gatheringId);
 
+    /** 대기 신청자의 user id. 자동 거절 알림 대상이라 거절하기 전에 읽는다. */
+    @Query("""
+            select p.user.id from Participation p
+            where p.gathering.id = :gatheringId
+              and p.status = com.buddygo.buddygoserver.domain.application.enums.ParticipationStatus.PENDING""")
+    List<Long> findPendingUserIds(Long gatheringId);
 
     interface ConfirmedCount {
         Long getGatheringId();

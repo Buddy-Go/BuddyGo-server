@@ -11,6 +11,10 @@ import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
+import com.buddygo.buddygoserver.domain.notification.enums.NotificationType;
+import com.buddygo.buddygoserver.domain.notification.service.NotificationSender;
+import com.buddygo.buddygoserver.domain.notification.support.NotificationMessages;
+import com.buddygo.buddygoserver.domain.notification.support.NotificationTarget;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +44,7 @@ public class GatheringStatusService {
     private final CheckInRepository checkInRepository;
     private final UserRepository userRepository;
     private final MannerTemperatureService mannerTemperatureService;
+    private final NotificationSender notificationSender;
     private final GatheringProperties gatheringProperties;
     private final CheckInProperties checkInProperties;
 
@@ -79,10 +84,16 @@ public class GatheringStatusService {
                 || !gathering.isUnfilledAtDeadline(now, gatheringProperties.deadlineOf(gathering.getStartAt()))) {
             return;
         }
+        List<Long> autoRejected = participationRepository.findPendingUserIds(gatheringId);
         participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_CANCELED, now);
         gathering.cancel();
         gatheringCancellationRepository.save(GatheringCancellation.underCapacity(gathering, now));
-        // TODO 인원 미달 취소 알림(호스트 + 확정 참가자) · 자동 거절 알림 (알림 도메인 구현 후)
+        NotificationTarget target = NotificationTarget.gathering(gatheringId);
+        notificationSender.send(NotificationType.GATHERING_CANCELED_UNDER_CAPACITY,
+                participationRepository.findConfirmedUserIds(gatheringId), null, target,
+                NotificationMessages.canceledUnderCapacity(gathering.getTitle()));
+        notificationSender.send(NotificationType.APPLICATION_REJECTED, autoRejected, null, target,
+                NotificationMessages.applicationRejectedCanceled(gathering.getTitle()));
     }
 
     public void start(Long gatheringId, Instant now) {
@@ -92,7 +103,36 @@ public class GatheringStatusService {
             return;
         }
         gathering.start();
-        // TODO 운동 시작 알림(아직 체크인하지 않은 호스트·참가자)
+        // 서버가 멈췄다 따라잡는 중이라 이미 노쇼 판정 시각이 지났으면 '운동 시작'은 의미가 없어 보내지 않는다
+        if (now.isBefore(checkInProperties.noShowAt(gathering.getStartAt()))) {
+            notificationSender.send(NotificationType.GATHERING_STARTED,
+                    checkInRepository.findConfirmedUserIdsWithoutCheckIn(gatheringId), null,
+                    NotificationTarget.gathering(gatheringId),
+                    NotificationMessages.gatheringStarted(gathering.getTitle()));
+        }
+    }
+
+    /** 체크인 열림 시각(시작 - open-before-start)이 지난 마감 모임. 이미 시작한 모임은 openCheckIn 이 걸러 낸다. */
+    @Transactional(readOnly = true)
+    public List<Long> findCheckInOpenable(Instant now) {
+        return gatheringRepository.findIdsByStatusStartingBy(
+                GatheringStatus.CLOSED, now.plus(checkInProperties.openBeforeStart()));
+    }
+
+    /**
+     * 체크인 열림 알림(호스트 + 확정 참가자). 상태 전이가 없어 열림 시각부터 시작 전까지 매 주기 다시 잡히므로,
+     * 받는 사람마다 모임당 한 번만 남도록 ON CONFLICT 로 넣는다. 시작 시각이 지났으면 '운동 시작' 알림이 대신한다.
+     */
+    public void openCheckIn(Long gatheringId, Instant now) {
+        Gathering gathering = lock(gatheringId);
+        if (gathering == null || gathering.getStatus() != GatheringStatus.CLOSED
+                || now.isBefore(checkInProperties.openAt(gathering.getStartAt()))
+                || !now.isBefore(gathering.getStartAt())) {
+            return;
+        }
+        notificationSender.sendOncePerGathering(NotificationType.CHECK_IN_OPENED,
+                participationRepository.findConfirmedUserIds(gatheringId), gatheringId,
+                NotificationMessages.checkInOpened(gathering.getTitle()));
     }
 
     /** 노쇼 판정 시각까지 체크인하지 않은 확정 참가자(호스트 포함)를 노쇼로 남긴다. 호스트가 노쇼여도 모임은 진행된다. */
@@ -119,7 +159,10 @@ public class GatheringStatusService {
         Long hostId = checkInRepository.hostAttended(gathering.getId()) ? gathering.getHost().getId() : null;
         applyAttendanceResults(gathering, noShowUserIds, hostId);
         gathering.finish();
-        // TODO 모임 종료 · 평가 가능 알림(체크인한 사람)
+        notificationSender.send(NotificationType.GATHERING_FINISHED,
+                checkInRepository.findAttendees(gatheringId).stream().map(CheckInRepository.Attendee::getUserId).toList(),
+                null, NotificationTarget.gathering(gatheringId),
+                NotificationMessages.gatheringFinished(gathering.getTitle()));
     }
 
     /**

@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -30,6 +32,7 @@ public class NotificationSender {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final Clock clock;
 
     public void send(NotificationType type, Collection<Long> receiverIds, Long actorId, NotificationTarget target,
                      String message) {
@@ -41,6 +44,20 @@ public class NotificationSender {
         notificationRepository.saveAll(receivers.stream()
                 .map(id -> Notification.of(userRepository.getReferenceById(id), actor, type, target, message))
                 .toList());
+    }
+
+    /**
+     * 체크인 열림처럼 상태 전이 없이 시각만으로 보내는 알림. 스케줄러가 다시 돌아도 받는 사람마다 모임당 한 번만 남도록
+     * uk_notifications_once_per_gathering(V10) 충돌은 건너뛴다.
+     */
+    public void sendOncePerGathering(NotificationType type, Collection<Long> receiverIds, Long gatheringId,
+                                     String message) {
+        Instant now = Instant.now(clock);
+        String fitted = Notification.fit(message);
+        for (Long receiverId : receiversOf(receiverIds, null)) {
+            notificationRepository.insertOncePerGatheringIgnoringDuplicate(receiverId, type.name(), gatheringId,
+                    fitted, now);
+        }
     }
 
     private static Set<Long> receiversOf(Collection<Long> receiverIds, Long actorId) {

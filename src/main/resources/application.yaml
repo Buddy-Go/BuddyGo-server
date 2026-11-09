@@ -98,7 +98,7 @@ scheduler:
   # 테스트에서는 build.gradle 이 false 로 끈다(공유 로컬 DB 를 건드리지 않도록)
   enabled: true
   # 모임 상태 전이(데드라인 미달 취소, 진행중, 노쇼, 종료) 주기는 따로 두지 않는다. 전이 시점이 모두
-  # gathering.* · check-in.no-show-after-start 의 최대공약수 간격(지금 10분) 정각에 놓이므로 그 간격으로 돈다
+  # gathering.* · check-in.open-before-start · check-in.no-show-after-start 의 최대공약수 간격(지금 10분) 정각에 놓이므로 그 간격으로 돈다
   # (GatheringStatusScheduler.tickOf).
 
 gym:
