@@ -29,6 +29,13 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             SELECT p.user_id FROM inserted i JOIN participations p ON p.id = i.participation_id""")
     List<Long> insertNoShows(Long gatheringId);
 
+    /** 확정 참가자(호스트 포함) 중 아직 체크인 기록이 없는 사람의 user id. '운동 시작' 알림 대상이다. */
+    @Query(nativeQuery = true, value = """
+            SELECT p.user_id FROM participations p
+            WHERE p.gathering_id = :gatheringId AND p.status = 'CONFIRMED'
+              AND NOT EXISTS (SELECT 1 FROM check_ins c WHERE c.participation_id = p.id)""")
+    List<Long> findConfirmedUserIdsWithoutCheckIn(Long gatheringId);
+
     /** 모임의 호스트가 체크인(정상·지각)했는지. 호스트 출석 보너스 판단에 쓴다. */
     @Query(nativeQuery = true, value = """
             SELECT EXISTS (

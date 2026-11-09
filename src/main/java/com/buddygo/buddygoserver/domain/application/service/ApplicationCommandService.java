@@ -15,7 +15,13 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellati
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.dto.request.GymRecordRequest;
 import com.buddygo.buddygoserver.domain.sport.gym.service.ApplicationGymService;
+import com.buddygo.buddygoserver.domain.application.event.ApplicationSubmittedEvent;
 import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
+import com.buddygo.buddygoserver.domain.notification.enums.NotificationType;
+import com.buddygo.buddygoserver.domain.notification.service.NotificationSender;
+import com.buddygo.buddygoserver.domain.notification.support.NotificationMessages;
+import com.buddygo.buddygoserver.domain.notification.support.NotificationTarget;
+import org.springframework.context.ApplicationEventPublisher;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.exception.UserErrorType;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
@@ -42,6 +48,8 @@ public class ApplicationCommandService {
     private final ParticipationRepository participationRepository;
     private final UserRepository userRepository;
     private final MannerTemperatureService mannerTemperatureService;
+    private final NotificationSender notificationSender;
+    private final ApplicationEventPublisher eventPublisher;
     private final ApplicationGymService applicationGymService;
     private final GatheringProperties gatheringProperties;
     private final Clock clock;
@@ -72,7 +80,13 @@ public class ApplicationCommandService {
         Participation application = participationRepository.saveAndFlush(
                 Participation.apply(gathering, user, blankToNull(message), now));
         applicationGymService.snapshot(application, gymRecords);
-        // TODO 호스트에게 신청 알림 · 메이트 알림 (알림 도메인 구현 후)
+        Long hostId = gathering.getHost().getId();
+        notificationSender.send(NotificationType.APPLICATION_RECEIVED, List.of(hostId), userId,
+                NotificationTarget.gathering(gatheringId),
+                NotificationMessages.applicationReceived(gathering.getTitle(), user.getNickname()));
+        // 버디 알림은 버디 도메인이 받아 처리한다(BuddyActivityNotificationListener)
+        eventPublisher.publishEvent(new ApplicationSubmittedEvent(gatheringId, gathering.getTitle(), hostId, userId,
+                user.getNickname()));
         return ApplicationResponse.from(application);
     }
 
@@ -103,13 +117,21 @@ public class ApplicationCommandService {
         }
 
         application.confirm(now);
+        NotificationTarget target = NotificationTarget.gathering(gatheringId);
+        notificationSender.send(NotificationType.APPLICATION_ACCEPTED, List.of(application.getUser().getId()), userId,
+                target, NotificationMessages.applicationAccepted(gathering.getTitle()));
         if (confirmed + 1 == gathering.getCapacity()) {
             gathering.close();
-            // 벌크 UPDATE 전에 위의 수락이 flush 되므로(flushAutomatically) 수락한 신청은 거절되지 않는다
+            // 거절하기 전에 대상을 읽는다. 조회 전에 위의 수락이 flush 되어 수락한 신청은 빠진다
+            List<Long> autoRejected = participationRepository.findPendingUserIds(gatheringId);
             participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_FULL, now);
-            // TODO 마감 알림(호스트 + 확정 참가자) · 자동 거절 알림
+            // 마감은 수락의 결과로 생긴 시스템 이벤트로 보고 호스트도 받는다(actor 없음)
+            notificationSender.send(NotificationType.GATHERING_CLOSED,
+                    participationRepository.findConfirmedUserIds(gatheringId), null, target,
+                    NotificationMessages.gatheringClosed(gathering.getTitle()));
+            notificationSender.send(NotificationType.APPLICATION_REJECTED, autoRejected, null, target,
+                    NotificationMessages.applicationRejectedFull(gathering.getTitle()));
         }
-        // TODO 수락 알림
         return ApplicationResponse.from(application);
     }
 
@@ -117,7 +139,9 @@ public class ApplicationCommandService {
         Gathering gathering = lockGatheringAsHost(gatheringId, userId);
         Participation application = pendingApplicationOf(gathering, applicationId);
         application.reject(RejectReason.BY_HOST, Instant.now(clock));
-        // TODO 거절 알림
+        notificationSender.send(NotificationType.APPLICATION_REJECTED, List.of(application.getUser().getId()), userId,
+                NotificationTarget.gathering(gatheringId),
+                NotificationMessages.applicationRejectedByHost(gathering.getTitle()));
         return ApplicationResponse.from(application);
     }
 
@@ -152,11 +176,16 @@ public class ApplicationCommandService {
             if (afterDeadline) {
                 gathering.cancel();
                 gatheringCancellationRepository.save(GatheringCancellation.byMemberLeft(gathering, now));
-                // TODO 방폭 알림(호스트 + 남은 확정 참가자)
             } else {
                 gathering.reopen();
-                // TODO 마감 풀림 알림(호스트 + 남은 확정 참가자)
             }
+            // 나간 사람은 LEFT 라 확정 명단에서 빠진다(조회 전에 flush 된다)
+            notificationSender.send(
+                    afterDeadline ? NotificationType.GATHERING_CANCELED_MEMBER_LEFT : NotificationType.MEMBER_LEFT_REOPENED,
+                    participationRepository.findConfirmedUserIds(gatheringId), userId,
+                    NotificationTarget.gathering(gatheringId),
+                    afterDeadline ? NotificationMessages.canceledMemberLeft(gathering.getTitle())
+                            : NotificationMessages.memberLeftReopened(gathering.getTitle()));
             // 모임 행을 잡은 뒤 사용자 행을 잠근다(모임 → 사용자 순서). 이 트랜잭션에서 User 를 먼저 읽지 않는다
             User leaver = userRepository.findByIdForUpdate(userId)
                     .orElseThrow(() -> new CustomException(UserErrorType.NOT_FOUND));

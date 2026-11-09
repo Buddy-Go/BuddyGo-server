@@ -18,7 +18,13 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellati
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.service.GatheringGymService;
+import com.buddygo.buddygoserver.domain.gathering.event.GatheringCreatedEvent;
 import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
+import com.buddygo.buddygoserver.domain.notification.enums.NotificationType;
+import com.buddygo.buddygoserver.domain.notification.service.NotificationSender;
+import com.buddygo.buddygoserver.domain.notification.support.NotificationMessages;
+import com.buddygo.buddygoserver.domain.notification.support.NotificationTarget;
+import org.springframework.context.ApplicationEventPublisher;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.exception.UserErrorType;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
@@ -33,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +54,8 @@ public class GatheringCommandService {
     private final ParticipationRepository participationRepository;
     private final UserRepository userRepository;
     private final MannerTemperatureService mannerTemperatureService;
+    private final NotificationSender notificationSender;
+    private final ApplicationEventPublisher eventPublisher;
     private final GatheringGymService gatheringGymService;
     private final GatheringQueryService gatheringQueryService;
     private final GatheringProperties gatheringProperties;
@@ -67,6 +76,9 @@ public class GatheringCommandService {
                 request.startAt(), duration, capacity, request.genderRule()));
         participationRepository.save(Participation.hostOf(gathering, now));
         gatheringGymService.saveCriteria(gathering, request.gym().parts(), request.gym().showMyRecord());
+        // 버디 알림은 버디 도메인이 받아 처리한다(BuddyActivityNotificationListener)
+        eventPublisher.publishEvent(new GatheringCreatedEvent(gathering.getId(), gathering.getTitle(), hostId,
+                host.getNickname()));
 
         return gatheringQueryService.getDetail(gathering.getId(), hostId);
     }
@@ -118,8 +130,12 @@ public class GatheringCommandService {
         if (participationRepository.countConfirmedExcludingHost(gatheringId) > 0) {
             throw new CustomException(GatheringErrorType.HAS_CONFIRMED_PARTICIPANTS);
         }
-        // TODO 대기 신청자에게 자동 거절 알림 (알림 도메인 구현 후). 삭제 전에 보내고, 알림의 gathering_id 는
-        //  삭제 때 NULL 이 되므로 메시지에 모임 제목을 담는다.
+        // 대기 신청자에게 자동 거절 알림을 삭제 전에 남긴다. 알림의 gathering_id 는 삭제 때 NULL 이 되므로(FK SET NULL)
+        // 문구에 모임 제목을 담는다
+        notificationSender.send(NotificationType.APPLICATION_REJECTED,
+                participationRepository.findPendingUserIds(gatheringId), null,
+                NotificationTarget.gathering(gatheringId),
+                NotificationMessages.applicationRejectedDeleted(gathering.getTitle()));
         gatheringRepository.deleteWithChildren(gathering.getId());
     }
 
@@ -132,6 +148,7 @@ public class GatheringCommandService {
         }
         // '마감 후'는 정원이 찬 상태(CLOSED)다. 데드라인이 지난 모집중 모임은 위에서 막혀 여기 오지 않는다
         boolean wasClosed = gathering.getStatus() == GatheringStatus.CLOSED;
+        List<Long> autoRejected = participationRepository.findPendingUserIds(gatheringId);
         participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_CANCELED, now);
         gathering.cancel();
         gatheringCancellationRepository.save(GatheringCancellation.byHost(gathering, reason.strip(), now));
@@ -139,7 +156,13 @@ public class GatheringCommandService {
         User host = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new CustomException(UserErrorType.NOT_FOUND));
         mannerTemperatureService.applyHostCancel(host, gatheringId, wasClosed);
-        // TODO 확정 참가자에게 사유 알림 · 자동 거절 알림
+        NotificationTarget target = NotificationTarget.gathering(gatheringId);
+        // 호스트는 행동한 사람이라 받는 사람에서 빠진다
+        notificationSender.send(NotificationType.GATHERING_CANCELED_BY_HOST,
+                participationRepository.findConfirmedUserIds(gatheringId), userId, target,
+                NotificationMessages.canceledByHost(gathering.getTitle(), reason.strip()));
+        notificationSender.send(NotificationType.APPLICATION_REJECTED, autoRejected, null, target,
+                NotificationMessages.applicationRejectedCanceled(gathering.getTitle()));
     }
 
     /**

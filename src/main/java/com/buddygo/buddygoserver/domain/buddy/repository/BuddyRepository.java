@@ -33,4 +33,12 @@ public interface BuddyRepository extends JpaRepository<Buddy, BuddyId> {
             where (b.id.userId = :userId and b.id.buddyId = :otherId)
                or (b.id.userId = :otherId and b.id.buddyId = :userId)""")
     int deleteBetween(Long userId, Long otherId);
+
+    /** 이 사람(buddyId)이 모임을 개설하면 알림을 받을 사람: (user, buddy=이 사람) 행 중 개설 알림을 켜둔 user */
+    @Query("select b.id.userId from Buddy b where b.id.buddyId = :buddyId and b.notifyGatheringCreated = true")
+    List<Long> findUserIdsNotifiedOfCreated(Long buddyId);
+
+    /** 이 사람(buddyId)이 모임에 신청하면 알림을 받을 사람: (user, buddy=이 사람) 행 중 신청 알림을 켜둔 user */
+    @Query("select b.id.userId from Buddy b where b.id.buddyId = :buddyId and b.notifyGatheringApplied = true")
+    List<Long> findUserIdsNotifiedOfApplied(Long buddyId);
 }
