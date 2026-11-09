@@ -36,4 +36,15 @@ public class CheckIn {
 
     @Column(name = "distance_m")
     private Integer distanceM;
+
+    /** GPS 체크인 성공(정상·지각). 노쇼는 스케줄러가 네이티브 INSERT 로 남긴다. */
+    public static CheckIn attended(Participation participation, Attendance attendance, Instant checkedInAt,
+                                   int distanceM) {
+        return CheckIn.builder()
+                .participation(participation)
+                .attendance(attendance)
+                .checkedInAt(checkedInAt)
+                .distanceM(distanceM)
+                .build();
+    }
 }

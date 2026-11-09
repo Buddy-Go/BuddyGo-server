@@ -117,6 +117,15 @@ public class Gathering extends BaseEntity {
         return status == GatheringStatus.CANCELED;
     }
 
+    /**
+     * 확정 참가자(호스트 제외)가 확정 명단을 볼 수 있는지 (서비스 규칙 정의서 5장): 마감 이후(마감·진행중·종료)에만.
+     * 모집중으로 돌아가거나 취소되면 다시 가려진다. 호스트는 상태와 무관하게 항상 본다.
+     */
+    public boolean isRosterVisibleToParticipants() {
+        return status == GatheringStatus.CLOSED || status == GatheringStatus.IN_PROGRESS
+                || status == GatheringStatus.FINISHED;
+    }
+
     public Duration getDuration() {
         return Duration.between(startAt, endAt);
     }

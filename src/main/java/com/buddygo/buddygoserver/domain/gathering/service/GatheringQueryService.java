@@ -11,7 +11,6 @@ import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailRe
 import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringParticipantResponse;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
 import com.buddygo.buddygoserver.domain.gathering.entity.GatheringLikeId;
-import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.enums.ViewerRole;
 import com.buddygo.buddygoserver.domain.gathering.exception.GatheringErrorType;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
@@ -25,10 +24,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -36,8 +33,6 @@ import java.util.Set;
 public class GatheringQueryService {
 
     /** 확정 참가자가 명단을 볼 수 있는 상태. 마감이 풀려 모집중으로 돌아가면 다시 가려진다. */
-    private static final Set<GatheringStatus> MEMBERS_VISIBLE_TO_PARTICIPANT =
-            EnumSet.of(GatheringStatus.CLOSED, GatheringStatus.IN_PROGRESS, GatheringStatus.FINISHED);
 
     private final GatheringRepository gatheringRepository;
     private final GatheringLikeRepository gatheringLikeRepository;
@@ -109,6 +104,6 @@ public class GatheringQueryService {
 
     private static boolean canSeeMembers(Gathering gathering, ViewerRole role) {
         return role == ViewerRole.HOST
-                || (role == ViewerRole.PARTICIPANT && MEMBERS_VISIBLE_TO_PARTICIPANT.contains(gathering.getStatus()));
+                || (role == ViewerRole.PARTICIPANT && gathering.isRosterVisibleToParticipants());
     }
 }
