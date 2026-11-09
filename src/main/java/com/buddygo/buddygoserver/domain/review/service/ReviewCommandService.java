@@ -5,6 +5,7 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository
 import com.buddygo.buddygoserver.domain.review.config.ReviewProperties;
 import com.buddygo.buddygoserver.domain.review.dto.request.ReviewSubmitRequest;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewResponse;
+import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
 import com.buddygo.buddygoserver.domain.review.entity.Review;
 import com.buddygo.buddygoserver.domain.review.entity.ReviewTag;
 import com.buddygo.buddygoserver.domain.review.enums.ReviewTagType;
@@ -76,7 +77,7 @@ public class ReviewCommandService {
         reviewTagRepository.saveAll(sortedTags.stream().map(tag -> ReviewTag.of(review, tag)).toList());
 
         long positive = tags.stream().filter(t -> t.getPolarity() == Polarity.POSITIVE).count();
-        mannerTemperatureService.applyReview(target, review,
+        mannerTemperatureService.applyReview(target, review.getId(),
                 reviewProperties.score().of(request.rating(), positive, tags.size() - positive));
         return ReviewResponse.of(review, sortedTags);
     }

@@ -29,7 +29,8 @@ public interface CheckInApi {
             description = """
                     호스트를 포함한 확정 참가자가 기기 GPS 좌표로 체크인한다. 마감(정원이 찬) 모임에서 시작 10분 전부터 시작 후 10분 전까지 열리고,
                     시작 후 5분 전까지는 정상(ON_TIME), 그 뒤는 지각(LATE)이다. 모임 장소에서 50m 안이어야 하며 범위 밖이면 현재 거리를 준다.
-                    한 번만 할 수 있고 고칠 수 없다. 시작 후 10분까지 체크인하지 않으면 서버가 노쇼로 기록한다.""")
+                    한 번만 할 수 있고 고칠 수 없다. 지각이면 같은 요청에서 매너온도가 내려간다(노쇼보다 작게).
+                    시작 후 10분까지 체크인하지 않으면 서버가 노쇼로 기록하고 매너온도를 내린다.""")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "체크인 성공"),
             @ApiResponse(responseCode = "400", description = "G002 좌표 누락·범위 밖 값"),
