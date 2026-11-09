@@ -11,7 +11,7 @@ import java.time.Instant;
  * 평가 규칙의 설정값 (서비스 규칙 정의서 11장). 평가 기한은 제출 때 시각으로 판정하므로 스케줄러가 없다.
  */
 @ConfigurationProperties("review")
-public record ReviewProperties(Duration deadlineAfterEnd, Score score) {
+public record ReviewProperties(Duration deadlineAfterEnd, Score score, int profileTopTags) {
 
     public ReviewProperties {
         if (deadlineAfterEnd == null || deadlineAfterEnd.isZero() || deadlineAfterEnd.isNegative()) {
@@ -19,6 +19,9 @@ public record ReviewProperties(Duration deadlineAfterEnd, Score score) {
         }
         if (score == null) {
             throw new IllegalStateException("review.score 가 필요합니다.");
+        }
+        if (profileTopTags <= 0) {
+            throw new IllegalStateException("review.profile-top-tags 는 양수여야 합니다.");
         }
     }
 

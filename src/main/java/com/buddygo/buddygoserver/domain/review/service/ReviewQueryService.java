@@ -4,6 +4,8 @@ import com.buddygo.buddygoserver.domain.review.config.ReviewProperties;
 import com.buddygo.buddygoserver.domain.review.dto.response.PendingReviewsResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReceivedReviewResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReceivedReviewsResponse;
+import com.buddygo.buddygoserver.domain.review.dto.response.ReviewSummaryResponse;
+import com.buddygo.buddygoserver.domain.review.dto.response.ReviewSummaryResponse.TagCountResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewTagsResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewTargetsResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewTagsResponse.TagResponse;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +85,17 @@ public class ReviewQueryService {
             throw new CustomException(UserErrorType.NOT_FOUND);
         }
         return received(targetId, PUBLIC_RATINGS, cursor, size);
+    }
+
+    /** '후기 n'(아쉬움 포함)과 많이 받은 태그(아쉬움 평가의 태그 제외). 개수가 같으면 태그 목록 순. */
+    public ReviewSummaryResponse getSummary(Long targetId) {
+        List<TagCountResponse> topTags = reviewTagRepository.countPublicByTargetId(targetId).stream()
+                .map(c -> TagCountResponse.of(ReviewTagType.valueOf(c.getTag()), c.getCount()))
+                .sorted(Comparator.comparingLong(TagCountResponse::count).reversed()
+                        .thenComparing(TagCountResponse::code))
+                .limit(reviewProperties.profileTopTags())
+                .toList();
+        return new ReviewSummaryResponse(reviewRepository.countByTargetId(targetId), topTags);
     }
 
     private ReceivedReviewsResponse received(Long targetId, Set<ReviewRating> ratings, String cursor, int size) {

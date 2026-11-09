@@ -15,6 +15,9 @@ import java.util.Optional;
 
 public interface GatheringRepository extends JpaRepository<Gathering, Long> {
 
+    /** 개설 횟수('개설 n회'): 이 상태(진행중·종료 = 실제로 진행된) 모임 수 */
+    long countByHostIdAndStatusIn(Long hostId, Collection<GatheringStatus> statuses);
+
     @Query("""
             select g from Gathering g
             join fetch g.host

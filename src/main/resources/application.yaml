@@ -68,6 +68,8 @@ review:
     bad: -0.5
     positive-tag: 0.1
     negative-tag: -0.1
+  # 프로필의 '많이 받은 태그' 개수. 아쉬움 평가의 태그는 비공개라 세지 않는다.
+  profile-top-tags: 3
 
 manner-temperature:
   # 시작값이자 곡선의 기준점. users.manner_temperature 의 기본값(36.5)과 같아야 한다.
