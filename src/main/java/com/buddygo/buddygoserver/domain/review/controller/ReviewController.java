@@ -3,6 +3,7 @@ package com.buddygo.buddygoserver.domain.review.controller;
 import com.buddygo.buddygoserver.domain.review.api.ReviewApi;
 import com.buddygo.buddygoserver.domain.review.dto.request.ReviewSubmitRequest;
 import com.buddygo.buddygoserver.domain.review.dto.response.PendingReviewsResponse;
+import com.buddygo.buddygoserver.domain.review.dto.response.ReceivedReviewsResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewTagsResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewTargetsResponse;
@@ -41,5 +42,15 @@ public class ReviewController implements ReviewApi {
             Long userId, Long gatheringId, ReviewSubmitRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(SuccessResponse.created(reviewCommandService.submit(userId, gatheringId, request)));
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<ReceivedReviewsResponse>> getMyReceived(Long userId, String cursor, int size) {
+        return ResponseEntity.ok(SuccessResponse.from(reviewQueryService.getMyReceived(userId, cursor, size)));
+    }
+
+    @Override
+    public ResponseEntity<SuccessResponse<ReceivedReviewsResponse>> getReceived(Long userId, String cursor, int size) {
+        return ResponseEntity.ok(SuccessResponse.from(reviewQueryService.getReceived(userId, cursor, size)));
     }
 }

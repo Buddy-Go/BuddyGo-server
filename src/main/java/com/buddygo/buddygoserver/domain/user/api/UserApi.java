@@ -3,7 +3,6 @@ package com.buddygo.buddygoserver.domain.user.api;
 import com.buddygo.buddygoserver.domain.user.dto.request.FcmTokenRequest;
 import com.buddygo.buddygoserver.domain.user.dto.request.NotificationSettingsRequest;
 import com.buddygo.buddygoserver.domain.user.dto.response.MyActivitiesResponse;
-import com.buddygo.buddygoserver.domain.user.dto.response.MyInfoResponse;
 import com.buddygo.buddygoserver.domain.user.dto.response.NotificationSettingsResponse;
 import com.buddygo.buddygoserver.global.response.success.SuccessResponse;
 import com.buddygo.buddygoserver.global.security.LoginUserId;
@@ -48,11 +47,6 @@ public interface UserApi {
             @RequestParam(required = false) @Pattern(regexp = "(?i)gym") String sport,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size);
-
-    @Operation(summary = "내 정보 조회", description = "마이페이지 기본 정보. 후기 수·개설/참여 횟수·많이 받은 태그는 아직 없다.")
-    @ApiResponse(responseCode = "200", description = "조회 성공")
-    @GetMapping
-    ResponseEntity<SuccessResponse<MyInfoResponse>> getMe(@LoginUserId Long userId);
 
     @Operation(summary = "전체 알림 설정", description = "끄면 이 사용자에게 푸시를 보내지 않는다.")
     @ApiResponses({

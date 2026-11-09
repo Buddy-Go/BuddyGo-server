@@ -16,6 +16,7 @@ public enum ReviewErrorType implements BaseErrorType {
     ALREADY_SUBMITTED(HttpStatus.CONFLICT, "R002", "이미 평가를 제출했습니다."),
     PERIOD_EXPIRED(HttpStatus.CONFLICT, "R003", "평가 기한이 지났습니다."),
     INVALID_TARGET(HttpStatus.BAD_REQUEST, "R004", "함께 참여한 사람만 평가할 수 있습니다."),
+    INVALID_CURSOR(HttpStatus.BAD_REQUEST, "R005", "커서가 올바르지 않습니다. 첫 페이지부터 다시 불러와 주세요."),
     ;
 
     private final HttpStatus status;

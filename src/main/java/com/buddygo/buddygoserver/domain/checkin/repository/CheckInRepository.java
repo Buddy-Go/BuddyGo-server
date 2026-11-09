@@ -116,7 +116,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
         long getCount();
     }
 
-    /** 사람마다 참여 횟수('참여 n회'): 체크인(정상·지각)한 모임 수 */
+    /** 사람마다 참여 횟수('참여 n회'): 남이 연 모임에서 체크인(정상·지각)한 수. 내가 연 모임은 '개설 n회'로 따로 센다. */
     @Query("""
             select p.user.id as userId, count(c) as count
             from CheckIn c join c.participation p join p.gathering g
@@ -125,7 +125,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
                                    com.buddygo.buddygoserver.domain.checkin.enums.Attendance.LATE)
               and g.status in (com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus.IN_PROGRESS,
                                com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus.FINISHED)
-             
+              and g.host.id <> p.user.id
             group by p.user.id""")
     List<AttendedCount> countAttendedByUserIds(Collection<Long> userIds);
 }

@@ -206,8 +206,10 @@ class BuddyIntegrationTest extends IntegrationTest {
         @Test
         void 받은_신청_목록에는_대기_중인_것만_보낸_사람_정보와_참여_횟수가_나온다() throws Exception {
             workedOut(PAST, alice, carol);
+            // 참여 횟수는 남이 연 모임만 센다: bob 이 연 모임은 빼고 2회
             workedOut(PAST.minus(Duration.ofDays(1)), bob, carol);
-            workedOut(PAST.minus(Duration.ofDays(2)), bob, carol);
+            workedOut(PAST.minus(Duration.ofDays(2)), carol, bob);
+            workedOut(PAST.minus(Duration.ofDays(3)), alice, bob);
             send(alice, carol);
             send(bob, carol);
             reject(carol, requestId(alice, carol));
