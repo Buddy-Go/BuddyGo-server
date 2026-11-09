@@ -1,6 +1,6 @@
-package com.buddygo.buddygoserver.domain.review.service;
+package com.buddygo.buddygoserver.domain.manner.service;
 
-import com.buddygo.buddygoserver.domain.review.config.MannerTemperatureProperties;
+import com.buddygo.buddygoserver.domain.manner.config.MannerTemperatureProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,7 +1,6 @@
-package com.buddygo.buddygoserver.domain.review.entity;
+package com.buddygo.buddygoserver.domain.manner.entity;
 
-import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
-import com.buddygo.buddygoserver.domain.review.enums.MannerTemperatureReason;
+import com.buddygo.buddygoserver.domain.manner.enums.MannerTemperatureReason;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.global.entity.BaseCreatedEntity;
 import jakarta.persistence.*;
@@ -12,6 +11,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * 매너온도 변화 이력. 평가·모임은 엔티티 연관 없이 ID 만 둔다(DB FK 는 그대로 있다).
+ * 매너온도는 평가·체크인·모임 상태 전이가 부르는 쪽이라, 연관을 두면 manner 와 그 도메인들이 서로를 참조하게 된다.
+ * 이력에서 모임·평가 내용이 필요하면 ID 로 조인한다.
+ */
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -34,23 +38,21 @@ public class MannerTemperatureLog extends BaseCreatedEntity {
     @Column(nullable = false)
     private String reason;
 
-    /** 평가 외 사유 */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "gathering_id")
-    private Gathering gathering;
+    /** 평가 외 사유(노쇼·지각 등)의 모임. gatherings(id) FK */
+    @Column(name = "gathering_id")
+    private Long gatheringId;
 
-    /** 평가 사유 */
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "review_id", unique = true)
-    private Review review;
+    /** 평가 사유의 평가. reviews(id) FK, 평가 하나에 이력 하나(uk_manner_temperature_logs_review) */
+    @Column(name = "review_id", unique = true)
+    private Long reviewId;
 
     /** 평가 한 건이 남긴 변화. 변화량이 0 이어도 남겨 평가마다 이력이 하나씩 있게 한다. */
-    public static MannerTemperatureLog ofReview(User user, BigDecimal delta, Review review) {
+    public static MannerTemperatureLog ofReview(User user, BigDecimal delta, Long reviewId) {
         return MannerTemperatureLog.builder()
                 .user(user)
                 .delta(delta)
                 .reason(MannerTemperatureReason.REVIEW.name())
-                .review(review)
+                .reviewId(reviewId)
                 .build();
     }
 }

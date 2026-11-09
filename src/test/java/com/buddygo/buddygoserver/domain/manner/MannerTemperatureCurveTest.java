@@ -1,9 +1,9 @@
-package com.buddygo.buddygoserver.domain.review;
+package com.buddygo.buddygoserver.domain.manner;
 
-import com.buddygo.buddygoserver.domain.review.config.MannerTemperatureProperties;
+import com.buddygo.buddygoserver.domain.manner.config.MannerTemperatureProperties;
 import com.buddygo.buddygoserver.domain.review.config.ReviewProperties;
 import com.buddygo.buddygoserver.domain.review.enums.ReviewRating;
-import com.buddygo.buddygoserver.domain.review.service.MannerTemperatureCurve;
+import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureCurve;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;

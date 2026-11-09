@@ -1,4 +1,4 @@
-package com.buddygo.buddygoserver.domain.review.config;
+package com.buddygo.buddygoserver.domain.manner.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
