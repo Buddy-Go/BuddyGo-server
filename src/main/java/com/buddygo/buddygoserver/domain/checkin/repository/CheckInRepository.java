@@ -15,15 +15,18 @@ import java.util.List;
 public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
 
     /**
-     * 모임의 확정 참가자(호스트 포함) 중 체크인 기록이 없는 사람을 노쇼로 남기고, 새로 노쇼가 된 참여 ID 를 돌려준다.
-     * 경계 시각에 들어온 체크인과 겹쳐도 배치가 실패하지 않도록 check_ins_pkey 충돌은 건너뛴다.
+     * 모임의 확정 참가자(호스트 포함) 중 체크인 기록이 없는 사람을 노쇼로 남기고, 이번에 새로 노쇼가 된 사람의 user id 를 돌려준다.
+     * 경계 시각에 들어온 체크인과 겹쳐도 배치가 실패하지 않도록 check_ins_pkey 충돌은 건너뛴다. 이미 기록된 사람은 결과에
+     * 없으므로, 여러 번 불러도 노쇼 페널티는 한 번만 들어간다.
      */
     @Query(nativeQuery = true, value = """
-            INSERT INTO check_ins (participation_id, attendance)
-            SELECT p.id, 'NO_SHOW' FROM participations p
-            WHERE p.gathering_id = :gatheringId AND p.status = 'CONFIRMED'
-            ON CONFLICT (participation_id) DO NOTHING
-            RETURNING participation_id""")
+            WITH inserted AS (
+                INSERT INTO check_ins (participation_id, attendance)
+                SELECT p.id, 'NO_SHOW' FROM participations p
+                WHERE p.gathering_id = :gatheringId AND p.status = 'CONFIRMED'
+                ON CONFLICT (participation_id) DO NOTHING
+                RETURNING participation_id)
+            SELECT p.user_id FROM inserted i JOIN participations p ON p.id = i.participation_id""")
     List<Long> insertNoShows(Long gatheringId);
 
     /** 두 사람이 같은 모임에서 함께 체크인(정상·지각)한 적이 있는지 */

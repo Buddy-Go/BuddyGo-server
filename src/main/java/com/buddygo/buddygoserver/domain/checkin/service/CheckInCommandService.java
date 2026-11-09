@@ -15,7 +15,11 @@ import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.exception.GatheringErrorType;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
+import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
+import com.buddygo.buddygoserver.domain.user.entity.User;
+import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import com.buddygo.buddygoserver.global.exception.CustomException;
+import com.buddygo.buddygoserver.domain.user.exception.UserErrorType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +43,8 @@ public class CheckInCommandService {
     private final ParticipationRepository participationRepository;
     private final CheckInRepository checkInRepository;
     private final PlaceRepository placeRepository;
+    private final UserRepository userRepository;
+    private final MannerTemperatureService mannerTemperatureService;
     private final CheckInProperties properties;
     private final Clock clock;
 
@@ -67,7 +73,12 @@ public class CheckInCommandService {
         Attendance attendance = properties.attendanceAt(gathering.getStartAt(), now);
         // 사전 검사를 지나 동시에 들어온 같은 사람의 두 번째 요청은 check_ins_pkey 위반 → C002
         CheckIn checkIn = checkInRepository.saveAndFlush(CheckIn.attended(participation, attendance, now, distance));
-        // TODO 지각 매너온도 하락(점수 미정) — 시스템 페널티(노쇼·나가기·호스트 취소)와 함께 구현
+        if (attendance == Attendance.LATE) {
+            // 모임 행을 잡은 뒤 사용자 행을 잠근다(평가·노쇼 페널티와 같은 순서). 이 트랜잭션에서 User 를 먼저 읽지 않아 잠근 시점의 온도를 본다
+            User user = userRepository.findByIdForUpdate(userId)
+                    .orElseThrow(() -> new CustomException(UserErrorType.NOT_FOUND));
+            mannerTemperatureService.applyLate(user, gathering.getId());
+        }
         return CheckInResponse.from(checkIn);
     }
 

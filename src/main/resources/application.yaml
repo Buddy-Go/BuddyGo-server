@@ -75,6 +75,12 @@ manner-temperature:
   # 오를 때는 (max - 현재) / (max - neutral), 내릴 때는 현재 / neutral 을 곱한다(둘 다 1 이 넘지 않게 자름).
   # 그래서 max 에 가까울수록 덜 오르고 0 에 가까울수록 덜 내려가며, max 와 0 에는 닿지 않는다.
   max: 100
+  # 시스템이 자동으로 내리는 점수(곡선에 넣기 전, 음수). 지각은 노쇼보다 작아야 한다.
+  penalty:
+    # 시작 후 check-in.no-show-after-start 까지 체크인하지 않음
+    no-show: -5
+    # 지각 체크인
+    late: -1
 
 scheduler:
   # 테스트에서는 build.gradle 이 false 로 끈다(공유 로컬 DB 를 건드리지 않도록)

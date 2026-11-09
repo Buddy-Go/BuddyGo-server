@@ -1,21 +1,30 @@
 package com.buddygo.buddygoserver.domain.manner.service;
 
+import com.buddygo.buddygoserver.domain.manner.config.MannerTemperatureProperties;
 import com.buddygo.buddygoserver.domain.manner.entity.MannerTemperatureLog;
+import com.buddygo.buddygoserver.domain.manner.enums.MannerTemperatureReason;
 import com.buddygo.buddygoserver.domain.manner.repository.MannerTemperatureLogRepository;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 
 /**
  * 매너온도 변경. 점수에 곡선을 적용해 더하고 사유와 함께 이력을 남긴다.
  * 이력의 delta 는 실제로 더한 값이라 시작값 + 이력 합 = 현재 온도다.
  *
+ * <p>모든 메서드는 이 트랜잭션에서 행을 잠근(findByIdForUpdate) 사용자를 받는다. 잠그지 않고 읽은 값에 더하면
+ * 동시에 일어난 다른 변경 하나가 사라진다. 모임이 걸린 변경은 모임 행 → 사용자 행 순서로 잠근다.
+ *
  * <p>평가·모임은 ID 로만 받는다. 이 도메인이 부르는 쪽(review·checkin·gathering)을 참조하지 않게 하려는 것이다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(propagation = Propagation.MANDATORY)
@@ -23,15 +32,43 @@ public class MannerTemperatureService {
 
     private final MannerTemperatureLogRepository mannerTemperatureLogRepository;
     private final MannerTemperatureCurve curve;
+    private final MannerTemperatureProperties properties;
+    private final Clock clock;
 
-    /**
-     * @param lockedTarget 이 트랜잭션에서 행을 잠근(findByIdForUpdate) 사용자. 잠그지 않고 읽은 값에 더하면 동시 평가 하나가 사라진다.
-     * @return 실제로 더한 변화량
-     */
+    /** @return 실제로 더한 변화량 */
     public BigDecimal applyReview(User lockedTarget, Long reviewId, BigDecimal score) {
         BigDecimal delta = curve.deltaOf(lockedTarget.getExactMannerTemperature(), score);
         lockedTarget.applyMannerDelta(delta);
         mannerTemperatureLogRepository.save(MannerTemperatureLog.ofReview(lockedTarget, delta, reviewId));
+        return delta;
+    }
+
+    /** 노쇼 페널티. 모임마다 한 번만 부른다(새로 노쇼가 된 사람만). */
+    public BigDecimal applyNoShow(User lockedUser, Long gatheringId) {
+        return applyAttendance(lockedUser, gatheringId, MannerTemperatureReason.NO_SHOW, properties.penalty().noShow());
+    }
+
+    /** 지각 페널티. 지각 체크인이 저장된 트랜잭션에서 부른다. */
+    public BigDecimal applyLate(User lockedUser, Long gatheringId) {
+        return applyAttendance(lockedUser, gatheringId, MannerTemperatureReason.LATE, properties.penalty().late());
+    }
+
+    /**
+     * 이력을 먼저 넣고, 들어갔을 때만 온도에 더한다. 같은 모임·사유의 이력이 이미 있으면(호출 경로가 두 번 부른 버그)
+     * 아무것도 바꾸지 않고 경고만 남긴다. 예외로 두면 스케줄러에서는 그 모임의 노쇼 기록·종료까지 롤백되어 매 주기 실패한다.
+     *
+     * @return 실제로 더한 변화량(중복이면 0)
+     */
+    private BigDecimal applyAttendance(User lockedUser, Long gatheringId, MannerTemperatureReason reason,
+                                       BigDecimal score) {
+        BigDecimal delta = curve.deltaOf(lockedUser.getExactMannerTemperature(), score);
+        boolean inserted = !mannerTemperatureLogRepository.insertAttendanceIgnoringDuplicate(
+                lockedUser.getId(), delta, reason.name(), gatheringId, Instant.now(clock)).isEmpty();
+        if (!inserted) {
+            log.warn("[Manner Duplicate] {} user={} gathering={} 이미 반영됨, 건너뜀", reason, lockedUser.getId(), gatheringId);
+            return BigDecimal.ZERO;
+        }
+        lockedUser.applyMannerDelta(delta);
         return delta;
     }
 }

@@ -10,6 +10,9 @@ import com.buddygo.buddygoserver.domain.gathering.entity.GatheringCancellation;
 import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
+import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
+import com.buddygo.buddygoserver.domain.user.entity.User;
+import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,8 @@ public class GatheringStatusService {
     private final GatheringCancellationRepository gatheringCancellationRepository;
     private final ParticipationRepository participationRepository;
     private final CheckInRepository checkInRepository;
+    private final UserRepository userRepository;
+    private final MannerTemperatureService mannerTemperatureService;
     private final GatheringProperties gatheringProperties;
     private final CheckInProperties checkInProperties;
 
@@ -110,9 +115,18 @@ public class GatheringStatusService {
         // TODO 모임 종료 · 평가 가능 알림(체크인한 사람)
     }
 
+    /**
+     * 노쇼를 기록하고 새로 노쇼가 된 사람에게만 페널티를 준다. 모임 행을 잡은 상태에서 사용자 행을 id 오름차순으로 잠근다
+     * (모임 → 사용자 순서는 평가·지각 체크인과 같다).
+     */
     private void insertNoShows(Gathering gathering) {
-        List<Long> noShowParticipationIds = checkInRepository.insertNoShows(gathering.getId());
-        // TODO 노쇼 매너온도 하락(점수 미정) — noShowParticipationIds 는 이번에 새로 노쇼가 된 참여만 담는다
+        List<Long> noShowUserIds = checkInRepository.insertNoShows(gathering.getId());
+        if (noShowUserIds.isEmpty()) {
+            return;
+        }
+        for (User user : userRepository.findAllByIdsForUpdate(noShowUserIds)) {
+            mannerTemperatureService.applyNoShow(user, gathering.getId());
+        }
     }
 
     /** 후보 조회 뒤 삭제된 모임은 null */
