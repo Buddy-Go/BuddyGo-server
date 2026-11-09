@@ -1,10 +1,13 @@
 package com.buddygo.buddygoserver.domain.review.repository;
 
 import com.buddygo.buddygoserver.domain.review.entity.Review;
+import com.buddygo.buddygoserver.domain.review.enums.ReviewRating;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -12,6 +15,19 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     /** 받은 평가 수 (프로필·호스트 카드의 '후기 n'). 아쉬움 평가도 센다. */
     long countByTargetId(Long targetId);
+
+    /**
+     * 받은 평가 목록 한 페이지: 최신순(작성 시각, id 내림차순)으로 커서 뒤부터. 평가자·모임을 함께 읽는다.
+     *
+     * @param ratings 보여줄 판정(남의 목록은 아쉬움을 뺀다)
+     */
+    @Query("""
+            select r from Review r join fetch r.evaluator join fetch r.gathering
+            where r.target.id = :targetId and r.rating in :ratings
+              and (r.createdAt < :beforeCreatedAt or (r.createdAt = :beforeCreatedAt and r.id < :beforeId))
+            order by r.createdAt desc, r.id desc""")
+    List<Review> findReceived(Long targetId, Collection<ReviewRating> ratings,
+                              Instant beforeCreatedAt, long beforeId, Limit limit);
 
     boolean existsByGatheringIdAndEvaluatorIdAndTargetId(Long gatheringId, Long evaluatorId, Long targetId);
 

@@ -2,6 +2,7 @@ package com.buddygo.buddygoserver.domain.review.api;
 
 import com.buddygo.buddygoserver.domain.review.dto.request.ReviewSubmitRequest;
 import com.buddygo.buddygoserver.domain.review.dto.response.PendingReviewsResponse;
+import com.buddygo.buddygoserver.domain.review.dto.response.ReceivedReviewsResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewTagsResponse;
 import com.buddygo.buddygoserver.domain.review.dto.response.ReviewTargetsResponse;
@@ -12,11 +13,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Tag(name = "review", description = "평가")
 @ApiResponses(@ApiResponse(responseCode = "401", description = "G004 토큰 없음 · A002 유효하지 않음 · A003 만료"))
@@ -57,4 +61,32 @@ public interface ReviewApi {
     @PostMapping("/api/gatherings/{gatheringId}/reviews")
     ResponseEntity<SuccessResponse<ReviewResponse>> submit(
             @LoginUserId Long userId, @PathVariable Long gatheringId, @Valid @RequestBody ReviewSubmitRequest request);
+
+    @Operation(summary = "내가 받은 후기", description = """
+            최신순 무한 스크롤. 아쉬움 평가도 보이지만 누가 줬는지 드러나지 않게 evaluator·gathering 이 null 이다.
+            한마디·태그가 없는 평가도 판정만 있는 줄로 나온다. 첫 요청은 cursor 없이, 다음부터는 받은 nextCursor 를 보낸다.
+            size는 1~100(기본 20).""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공. 후기가 없으면 content는 빈 배열"),
+            @ApiResponse(responseCode = "400", description = "G002 잘못된 size · R005 잘못된 커서")
+    })
+    @GetMapping("/api/users/me/reviews")
+    ResponseEntity<SuccessResponse<ReceivedReviewsResponse>> getMyReceived(
+            @LoginUserId Long userId,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size);
+
+    @Operation(summary = "다른 사용자가 받은 후기", description = """
+            최신순 무한 스크롤. 아쉬움 평가는 공개하지 않아 목록에 없다(프로필의 '후기 n'에는 들어간다).
+            나머지는 내가 받은 후기와 같다.""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공. 후기가 없으면 content는 빈 배열"),
+            @ApiResponse(responseCode = "400", description = "G002 잘못된 size · R005 잘못된 커서"),
+            @ApiResponse(responseCode = "404", description = "U001 없는 사용자")
+    })
+    @GetMapping("/api/users/{userId}/reviews")
+    ResponseEntity<SuccessResponse<ReceivedReviewsResponse>> getReceived(
+            @PathVariable Long userId,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size);
 }
