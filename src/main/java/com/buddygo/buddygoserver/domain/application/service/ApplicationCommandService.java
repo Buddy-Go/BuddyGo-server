@@ -15,6 +15,7 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellati
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.dto.request.GymRecordRequest;
 import com.buddygo.buddygoserver.domain.sport.gym.service.ApplicationGymService;
+import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.exception.UserErrorType;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
@@ -40,6 +41,7 @@ public class ApplicationCommandService {
     private final GatheringCancellationRepository gatheringCancellationRepository;
     private final ParticipationRepository participationRepository;
     private final UserRepository userRepository;
+    private final MannerTemperatureService mannerTemperatureService;
     private final ApplicationGymService applicationGymService;
     private final GatheringProperties gatheringProperties;
     private final Clock clock;
@@ -144,15 +146,21 @@ public class ApplicationCommandService {
                 .orElseThrow(() -> new CustomException(ApplicationErrorType.NOT_PARTICIPANT));
 
         participation.leave(now);
+        // 모집중인 모임에서 나가면 확정 인원만 줄고 매너온도 영향은 없다
         if (gathering.getStatus() == GatheringStatus.CLOSED) {
-            if (now.isBefore(gatheringProperties.deadlineOf(gathering.getStartAt()))) {
-                gathering.reopen();
-                // TODO 나간 사람 매너온도 하락 · 마감 풀림 알림(호스트 + 남은 확정 참가자)
-            } else {
+            boolean afterDeadline = !now.isBefore(gatheringProperties.deadlineOf(gathering.getStartAt()));
+            if (afterDeadline) {
                 gathering.cancel();
                 gatheringCancellationRepository.save(GatheringCancellation.byMemberLeft(gathering, now));
-                // TODO 나간 사람 매너온도 하락(데드라인 전보다 크게) · 방폭 알림(호스트 + 남은 확정 참가자)
+                // TODO 방폭 알림(호스트 + 남은 확정 참가자)
+            } else {
+                gathering.reopen();
+                // TODO 마감 풀림 알림(호스트 + 남은 확정 참가자)
             }
+            // 모임 행을 잡은 뒤 사용자 행을 잠근다(모임 → 사용자 순서). 이 트랜잭션에서 User 를 먼저 읽지 않는다
+            User leaver = userRepository.findByIdForUpdate(userId)
+                    .orElseThrow(() -> new CustomException(UserErrorType.NOT_FOUND));
+            mannerTemperatureService.applyLeave(leaver, gatheringId, afterDeadline);
         }
         return ApplicationResponse.from(participation);
     }

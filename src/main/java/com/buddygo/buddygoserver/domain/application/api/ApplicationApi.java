@@ -88,9 +88,10 @@ public interface ApplicationApi {
     @Operation(summary = "모임 나가기",
             description = """
                     확정 참가자만. 호스트는 나갈 수 없다(모임 취소를 사용). 진행중이 된 뒤에는 나갈 수 없다.
-                    - 모집중: 확정 인원만 줄어든다
-                    - 마감 · 데드라인 전: 마감이 풀려 다시 모집한다(gatheringStatus=RECRUITING)
-                    - 마감 · 데드라인 후: 모임 전체가 취소된다(gatheringStatus=CANCELED). 확인 창에 '지금 나가면 모임이 취소돼요'를 안내한다""")
+                    - 모집중: 확정 인원만 줄어든다. 매너온도 영향 없음
+                    - 마감 · 데드라인 전: 마감이 풀려 다시 모집한다(gatheringStatus=RECRUITING). 나간 사람 매너온도 하락
+                    - 마감 · 데드라인 후: 모임 전체가 취소된다(gatheringStatus=CANCELED). 나간 사람 매너온도가 데드라인 전보다 크게 하락.
+                      확인 창에 '지금 나가면 모임이 취소돼요'를 안내한다""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "나가기 성공(status=LEFT). gatheringStatus 로 모임에 생긴 일을 알 수 있다."),
             @ApiResponse(responseCode = "403", description = "AP007 확정 참가자가 아님"),

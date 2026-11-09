@@ -11,12 +11,14 @@ import com.buddygo.buddygoserver.domain.gathering.dto.response.GatheringDetailRe
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
 import com.buddygo.buddygoserver.domain.gathering.entity.GatheringCancellation;
 import com.buddygo.buddygoserver.domain.gathering.entity.Place;
+import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
 import com.buddygo.buddygoserver.domain.gathering.enums.GenderRule;
 import com.buddygo.buddygoserver.domain.gathering.exception.GatheringErrorType;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.service.GatheringGymService;
+import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.exception.UserErrorType;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
@@ -44,6 +46,7 @@ public class GatheringCommandService {
     private final GatheringCancellationRepository gatheringCancellationRepository;
     private final ParticipationRepository participationRepository;
     private final UserRepository userRepository;
+    private final MannerTemperatureService mannerTemperatureService;
     private final GatheringGymService gatheringGymService;
     private final GatheringQueryService gatheringQueryService;
     private final GatheringProperties gatheringProperties;
@@ -127,10 +130,16 @@ public class GatheringCommandService {
         if (participationRepository.countConfirmedExcludingHost(gatheringId) == 0) {
             throw new CustomException(GatheringErrorType.NO_CONFIRMED_PARTICIPANTS);
         }
+        // '마감 후'는 정원이 찬 상태(CLOSED)다. 데드라인이 지난 모집중 모임은 위에서 막혀 여기 오지 않는다
+        boolean wasClosed = gathering.getStatus() == GatheringStatus.CLOSED;
         participationRepository.rejectAllPending(gatheringId, RejectReason.MEETING_CANCELED, now);
         gathering.cancel();
         gatheringCancellationRepository.save(GatheringCancellation.byHost(gathering, reason.strip(), now));
-        // TODO 호스트 매너온도 하락(마감 후 취소가 더 크게, 점수 미정) · 확정 참가자에게 사유 알림 · 자동 거절 알림
+        // 모임 행을 잡은 뒤 호스트 행을 잠근다(모임 → 사용자 순서). 이 트랜잭션에서 호스트 User 를 먼저 읽지 않는다
+        User host = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new CustomException(UserErrorType.NOT_FOUND));
+        mannerTemperatureService.applyHostCancel(host, gatheringId, wasClosed);
+        // TODO 확정 참가자에게 사유 알림 · 자동 거절 알림
     }
 
     /**

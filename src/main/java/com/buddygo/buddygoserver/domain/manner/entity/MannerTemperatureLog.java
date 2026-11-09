@@ -55,4 +55,15 @@ public class MannerTemperatureLog extends BaseCreatedEntity {
                 .reviewId(reviewId)
                 .build();
     }
+
+    /** 모임에 걸린 시스템 변경 중 모임당 여러 번 생길 수 있는 것(데드라인 전 나가기). 나머지는 저장소의 ON CONFLICT INSERT 로 넣는다. */
+    public static MannerTemperatureLog ofGathering(User user, BigDecimal delta, MannerTemperatureReason reason,
+                                                   Long gatheringId) {
+        return MannerTemperatureLog.builder()
+                .user(user)
+                .delta(delta)
+                .reason(reason.name())
+                .gatheringId(gatheringId)
+                .build();
+    }
 }
