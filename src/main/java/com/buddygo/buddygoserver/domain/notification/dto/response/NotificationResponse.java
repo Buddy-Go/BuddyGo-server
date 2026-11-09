@@ -21,8 +21,6 @@ public record NotificationResponse(
         return new NotificationResponse(notification.getId(), notification.getType(), notification.getMessage(),
                 notification.getCreatedAt(), notification.getReadAt(), notification.getReadAt() != null,
                 notification.getActor() == null ? null : notification.getActor().getId(),
-                notification.getGathering() == null ? null : notification.getGathering().getId(),
-                notification.getNotice() == null ? null : notification.getNotice().getId(),
-                notification.getBuddyRequest() == null ? null : notification.getBuddyRequest().getId());
+                notification.getGatheringId(), notification.getNoticeId(), notification.getBuddyRequestId());
     }
 }

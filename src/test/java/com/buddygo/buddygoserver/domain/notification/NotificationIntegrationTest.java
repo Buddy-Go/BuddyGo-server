@@ -153,8 +153,8 @@ class NotificationIntegrationTest extends IntegrationTest {
         Gathering gathering = gatherings.save(Gathering.open(other, place, "모임", null, null,
                 NOW.plusSeconds(10800), Duration.ofHours(1), (short) 3, GenderRule.ANY));
         Notice notice = notices.save(Notice.builder().gathering(gathering).title("공지").content("본문").build());
-        Notification n = notifications.save(Notification.builder().receiver(me).actor(other).gathering(gathering)
-                .notice(notice).type("NOTICE_CREATED").message("새 공지").build());
+        Notification n = notifications.save(Notification.builder().receiver(me).actor(other).gatheringId(gathering.getId())
+                .noticeId(notice.getId()).type("NOTICE_CREATED").message("새 공지").build());
         em.flush(); em.clear();
         request(me, get(BASE)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].actorId").value(other.getId()))

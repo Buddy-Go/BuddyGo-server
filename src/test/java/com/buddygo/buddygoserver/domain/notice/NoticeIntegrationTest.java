@@ -152,7 +152,7 @@ class NoticeIntegrationTest extends IntegrationTest {
         em.flush(); em.clear();
         assertThat(notices.findById(id)).isEmpty();
         assertThat(comments.count()).isZero();
-        assertThat(notifications.findAll()).hasSize(2).allMatch(x -> x.getNotice() == null);
+        assertThat(notifications.findAll()).hasSize(2).allMatch(x -> x.getNoticeId() == null);
     }
 
     @Test
