@@ -1,10 +1,39 @@
 # 서버 배포용. 로컬 개발은 docker-compose.local.yml을 쓴다.
 # 값은 같은 디렉터리의 .env에서 읽는다 (.env.example 참고, .env는 커밋하지 않는다).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
+  # HTTPS 종료와 리버스 프록시. 인터넷에 열리는 건 이 컨테이너의 80/443뿐이다.
+  # 80은 Let's Encrypt 인증서 발급 확인(HTTP-01)에 필요하고, 들어오면 https로 넘긴다.
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: buddygo-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+    logging: *default-logging
+
   app:
     image: ghcr.io/buddy-go/buddygo-server:${IMAGE_TAG:-latest}
     container_name: buddygo-app
-    # 외부 공개는 앞단 리버스 프록시(HTTPS)가 맡는다. 호스트 루프백에만 묶는다.
+    # 한도가 없으면 Dockerfile의 MaxRAMPercentage=75가 호스트 메모리 기준으로 힙을 잡아
+    # 같은 서버의 Postgres·Redis 몫까지 가져간다. 인스턴스 메모리에 맞춰 조정한다.
+    mem_limit: ${APP_MEM_LIMIT:-1g}
+    # 외부 공개는 caddy가 맡는다. 호스트 루프백에만 묶어 배포 후 헬스 체크와 SSH 터널에만 쓴다.
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -26,11 +55,7 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    logging: &default-logging
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+    logging: *default-logging
 
   postgres:
     # 공식 postgis/postgis는 arm64 빌드가 없어 로컬과 같은 이미지를 빌드해 쓴다 (인스턴스 아키텍처 무관).
@@ -74,3 +99,6 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  # 발급받은 인증서가 들어 있다. 지우면 재발급을 반복하다 Let's Encrypt 발급 한도에 걸린다.
+  caddy-data:
+  caddy-config:
