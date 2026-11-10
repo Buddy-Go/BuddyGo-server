@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Instant;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -17,6 +20,7 @@ public class UserCommandService {
 
     private final UserRepository userRepository;
     private final DeviceTokenRepository deviceTokenRepository;
+    private final Clock clock;
 
     public NotificationSettingsResponse changeNotificationSettings(Long userId, boolean pushEnabled) {
         User user = getUser(userId);
@@ -28,7 +32,7 @@ public class UserCommandService {
         if (!userRepository.existsById(userId)) {
             throw new CustomException(UserErrorType.NOT_FOUND);
         }
-        deviceTokenRepository.upsert(userId, fcmToken.strip());
+        deviceTokenRepository.upsert(userId, fcmToken.strip(), Instant.now(clock));
     }
 
     private User getUser(Long userId) {

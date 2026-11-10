@@ -18,6 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -116,6 +118,8 @@ class UserIntegrationTest extends IntegrationTest {
         @Test
         void 등록하면_저장되고_같은_토큰을_다시_보내도_하나만_남는다() throws Exception {
             registerToken(user, "token-a").andExpect(status().isOk());
+            Instant later = Instant.parse("2026-11-10T00:00:00Z");
+            mutableClock.fix(later);
             registerToken(user, "token-a").andExpect(status().isOk());
             flushAndClear();
 
@@ -123,7 +127,8 @@ class UserIntegrationTest extends IntegrationTest {
                     .singleElement()
                     .satisfies(t -> {
                         assertThat(t.getFcmToken()).isEqualTo("token-a");
-                        assertThat(t.getUpdatedAt()).isNotNull();
+                        // 다시 등록한 시각(서버 시계)으로 갱신된다
+                        assertThat(t.getUpdatedAt()).isEqualTo(later);
                     });
         }
 
