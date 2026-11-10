@@ -1,0 +1,6 @@
+# 서버 배포용 리버스 프록시. HTTPS 인증서(Let's Encrypt) 발급·갱신을 Caddy가 자동으로 한다.
+# DOMAIN은 서버의 .env에서 읽는다 (예: buddygo.duckdns.org).
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy app:8080
+}

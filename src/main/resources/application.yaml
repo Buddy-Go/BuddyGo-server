@@ -1,3 +1,8 @@
+# 앞단 리버스 프록시(Caddy)가 붙이는 X-Forwarded-* 를 믿어 자신을 https로 인식한다.
+# 앱 포트는 호스트 루프백에만 열려 있어 프록시를 거치지 않고는 이 헤더를 위조할 수 없다.
+server:
+  forward-headers-strategy: framework
+
 spring:
   application:
     name: buddygo-server
