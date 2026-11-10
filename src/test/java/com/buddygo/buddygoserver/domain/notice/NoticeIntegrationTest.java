@@ -180,6 +180,45 @@ class NoticeIntegrationTest extends IntegrationTest {
         request(member, get(base()).param("page", "99"), null).andExpect(jsonPath("$.data.content").isEmpty());
     }
 
+    @Test
+    void 목록과_상세와_수정은_공지마다_댓글_수를_준다() throws Exception {
+        Notice commented = notice(gathering);
+        Notice empty = notice(gathering);
+        comment(commented, member);
+        comment(commented, host);
+        comment(empty(), member); // 다른 공지의 댓글은 세지 않는다
+
+        request(member, get(base()), null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].noticeId").value(empty.getId()))
+                .andExpect(jsonPath("$.data.content[0].commentCount").value(0))
+                .andExpect(jsonPath("$.data.content[1].noticeId").value(commented.getId()))
+                .andExpect(jsonPath("$.data.content[1].commentCount").value(2));
+        request(member, get(path(commented)), null).andExpect(jsonPath("$.data.commentCount").value(2));
+        request(host, patch(path(commented)), "{\"title\":\"바뀐 제목\"}")
+                .andExpect(jsonPath("$.data.commentCount").value(2));
+        request(host, post(base()), "{\"title\":\"새 공지\",\"content\":\"내용\"}")
+                .andExpect(jsonPath("$.data.commentCount").value(0));
+    }
+
+    @Test
+    void 댓글은_작성자가_호스트인지_알려준다() throws Exception {
+        Notice n = notice(gathering);
+        comment(n, host);
+        comment(n, member);
+
+        request(member, get(path(n) + "/comments"), null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].authorId").value(host.getId()))
+                .andExpect(jsonPath("$.data.content[0].authorHost").value(true))
+                .andExpect(jsonPath("$.data.content[1].authorId").value(member.getId()))
+                .andExpect(jsonPath("$.data.content[1].authorHost").value(false));
+        request(host, post(path(n) + "/comments"), "{\"content\":\"호스트 댓글\"}")
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.authorHost").value(true));
+        request(other, post(path(n) + "/comments"), "{\"content\":\"참가자 댓글\"}")
+                .andExpect(jsonPath("$.data.authorHost").value(false));
+    }
+
+    private Notice empty() { return notice(gathering()); }
+
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"title\":\" \"}", "{\"title\":\"\u2003\"}", "{\"content\":\"\"}", "{\"title\":null,\"content\":null}"})
     void 잘못된_수정요청은_400(String body) throws Exception {

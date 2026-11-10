@@ -17,10 +17,10 @@ public class NoticeCommentQueryService {
     private final NoticeCommentRepository commentRepository;
 
     public CommentListResponse comments(Long userId, Long gatheringId, Long noticeId, int page, int size) {
-        access.read(userId, gatheringId);
+        Long hostId = access.read(userId, gatheringId).getHost().getId();
         access.notice(gatheringId, noticeId);
         var comments = commentRepository.findByNoticeId(noticeId,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "createdAt", "id")));
-        return new CommentListResponse(comments.map(CommentResponse::from).getContent(), page, size, comments.hasNext());
+        return new CommentListResponse(comments.map(c -> CommentResponse.from(c, hostId)).getContent(), page, size, comments.hasNext());
     }
 }
