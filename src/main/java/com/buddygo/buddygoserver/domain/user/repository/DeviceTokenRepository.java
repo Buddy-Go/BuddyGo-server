@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> {
@@ -30,4 +31,20 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     @Modifying
     @Query("delete from DeviceToken t where t.user.id = :userId and t.fcmToken = :fcmToken")
     int deleteByUserIdAndFcmToken(Long userId, String fcmToken);
+
+    interface PushTarget {
+        Long getUserId();
+
+        String getToken();
+    }
+
+    /** 이 사람들의 기기 토큰. 전체 알림을 끈 사람은 뺀다. */
+    @Query("select t.user.id as userId, t.fcmToken as token from DeviceToken t "
+            + "where t.user.id in :userIds and t.user.pushEnabled = true")
+    List<PushTarget> findPushTargets(Collection<Long> userIds);
+
+    /** FCM 이 없다고 한 토큰을 지운다. readAt 뒤에 다시 등록된 토큰(updated_at 이 더 늦음)은 남긴다. */
+    @Modifying
+    @Query("delete from DeviceToken t where t.fcmToken in :tokens and t.updatedAt <= :readAt")
+    int deleteStale(Collection<String> tokens, Instant readAt);
 }

@@ -120,3 +120,13 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: method
   default-produces-media-type: application/json
+
+push:
+  # Firebase 서비스 계정 JSON 파일 경로. 비우면 푸시를 보내지 않는다(앱 알림 목록은 그대로 저장).
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  # 알림 제목. 본문은 앱 알림 문구 그대로다.
+  title: 버디고
+  # 커밋 후 푸시를 보내는 스레드 풀. 큐가 차면 그 푸시는 버린다.
+  executor:
+    pool-size: 2
+    queue-capacity: 1000

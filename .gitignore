@@ -41,3 +41,7 @@ out/
 .env
 src/main/resources/application-local.yaml
 CLAUDE.md
+
+### Firebase 서비스 계정 키 ###
+secrets/
+*firebase*service-account*.json
