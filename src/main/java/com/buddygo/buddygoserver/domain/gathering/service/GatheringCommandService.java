@@ -103,7 +103,8 @@ public class GatheringCommandService {
             if (request.startAt() != null) {
                 validateStartAt(request.startAt(), now);
             }
-            GenderRule genderRule = request.genderRule() != null ? request.genderRule() : gathering.getGenderRule();
+            GenderRule previousGenderRule = gathering.getGenderRule();
+            GenderRule genderRule = request.genderRule() != null ? request.genderRule() : previousGenderRule;
             validateGenderRule(genderRule, gathering.getHost());
             gathering.changeCore(
                     request.place() != null ? findOrCreatePlace(request.place(), now) : gathering.getPlace(),
@@ -114,10 +115,30 @@ public class GatheringCommandService {
             if (request.gym() != null) {
                 gatheringGymService.replaceCriteria(gathering, request.gym().parts(), request.gym().showMyRecord());
             }
+            if (genderRule != previousGenderRule) {
+                rejectPendingNotAllowedBy(gathering, now);
+            }
         }
-        // TODO 확정 참가자가 없을 때 성별 조건을 바꾸면 조건에 맞지 않게 된 대기 신청 처리 (규칙 미정)
 
         return gatheringQueryService.getDetail(gatheringId, userId);
+    }
+
+    /**
+     * 성별 조건이 바뀌어 맞지 않게 된 대기 신청을 자동 거절하고 알린다. 모임 행을 잠근 상태에서 부른다.
+     * 수락도 성별 조건을 다시 검사하므로, 여기서 빠진 신청이 있어도 조건에 맞지 않는 사람이 확정되지는 않는다.
+     */
+    private void rejectPendingNotAllowedBy(Gathering gathering, Instant now) {
+        List<Participation> notAllowed = participationRepository.findPendingWithUser(gathering.getId()).stream()
+                .filter(p -> !gathering.getGenderRule().allows(p.getUser().getGender()))
+                .toList();
+        if (notAllowed.isEmpty()) {
+            return;
+        }
+        notAllowed.forEach(p -> p.reject(RejectReason.GENDER_RULE_CHANGED, now));
+        notificationSender.send(NotificationType.APPLICATION_REJECTED,
+                notAllowed.stream().map(p -> p.getUser().getId()).toList(), null,
+                NotificationTarget.gathering(gathering.getId()),
+                NotificationMessages.applicationRejectedGenderRule(gathering.getTitle()));
     }
 
     /**

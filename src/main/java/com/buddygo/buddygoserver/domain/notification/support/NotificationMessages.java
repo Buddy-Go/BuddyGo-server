@@ -29,6 +29,10 @@ public final class NotificationMessages {
         return "%s 모임이 취소되어 신청이 거절됐어요.".formatted(quote(title));
     }
 
+    public static String applicationRejectedGenderRule(String title) {
+        return "%s 모임의 성별 조건이 바뀌어 신청이 거절됐어요.".formatted(quote(title));
+    }
+
     public static String applicationRejectedDeleted(String title) {
         return "%s 모임이 삭제되어 신청이 거절됐어요.".formatted(quote(title));
     }
