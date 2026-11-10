@@ -65,16 +65,16 @@ public final class NotificationMessages {
         return "%s 모임이 끝났어요. 함께한 사람을 평가해 주세요.".formatted(quote(title));
     }
 
-    public static String noticeCreated() {
-        return "새 모임 공지가 등록되었습니다.";
+    public static String noticeCreated(String title) {
+        return "%s 모임에 새 공지가 올라왔어요.".formatted(quote(title));
     }
 
-    public static String noticeUpdated() {
-        return "모임 공지가 수정되었습니다.";
+    public static String noticeUpdated(String title) {
+        return "%s 모임 공지가 수정됐어요.".formatted(quote(title));
     }
 
-    public static String noticeCommented() {
-        return "모임 공지에 새 댓글이 등록되었습니다.";
+    public static String noticeCommented(String title) {
+        return "%s 모임 공지에 새 댓글이 달렸어요.".formatted(quote(title));
     }
 
     public static String buddyRequestReceived(String senderNickname) {

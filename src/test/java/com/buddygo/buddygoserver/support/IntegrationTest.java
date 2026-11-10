@@ -1,5 +1,6 @@
 package com.buddygo.buddygoserver.support;
 
+import com.buddygo.buddygoserver.domain.notification.push.PushClient;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +25,9 @@ import java.time.ZoneId;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(IntegrationTest.ClockConfig.class)
-@MockitoSpyBean(types = UserRepository.class) // AuthIntegrationTest 가 사전 중복 확인을 우회해 유니크 제약 경합을 재현한다
+// UserRepository: AuthIntegrationTest 가 사전 중복 확인을 우회해 유니크 제약 경합을 재현한다
+// PushClient: 테스트에서는 보내지 않는 클라이언트다. PushIntegrationTest 가 보낸 내용을 확인하고 응답을 바꾼다
+@MockitoSpyBean(types = {UserRepository.class, PushClient.class})
 public abstract class IntegrationTest {
 
     @TestConfiguration

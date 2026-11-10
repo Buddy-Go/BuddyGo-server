@@ -18,7 +18,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -116,6 +119,8 @@ class UserIntegrationTest extends IntegrationTest {
         @Test
         void 등록하면_저장되고_같은_토큰을_다시_보내도_하나만_남는다() throws Exception {
             registerToken(user, "token-a").andExpect(status().isOk());
+            Instant later = Instant.parse("2026-11-10T00:00:00Z");
+            mutableClock.fix(later);
             registerToken(user, "token-a").andExpect(status().isOk());
             flushAndClear();
 
@@ -123,7 +128,8 @@ class UserIntegrationTest extends IntegrationTest {
                     .singleElement()
                     .satisfies(t -> {
                         assertThat(t.getFcmToken()).isEqualTo("token-a");
-                        assertThat(t.getUpdatedAt()).isNotNull();
+                        // 다시 등록한 시각(서버 시계)으로 갱신된다
+                        assertThat(t.getUpdatedAt()).isEqualTo(later);
                     });
         }
 
@@ -159,6 +165,39 @@ class UserIntegrationTest extends IntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON).content("{\"fcmToken\": \"  \"}"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors.fcmToken").exists());
+        }
+
+        @Test
+        void 로그아웃할_때_지우면_그_기기_토큰만_사라진다() throws Exception {
+            registerToken(user, "phone").andExpect(status().isOk());
+            registerToken(user, "tablet").andExpect(status().isOk());
+
+            deleteToken(user, "phone").andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(deviceTokenRepository.findAllByUserId(user.getId()))
+                    .extracting(DeviceToken::getFcmToken).containsExactly("tablet");
+        }
+
+        @Test
+        void 남의_토큰은_지우지_않고_없는_토큰도_200() throws Exception {
+            User other = userRepository.save(
+                    User.signUpWithEmail("other@example.com", "hash", "이버디", "다른버디", Gender.FEMALE));
+            registerToken(other, "other-device").andExpect(status().isOk());
+
+            deleteToken(user, "other-device").andExpect(status().isOk());
+            deleteToken(user, "missing").andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(deviceTokenRepository.findAllByUserId(other.getId()))
+                    .extracting(DeviceToken::getFcmToken).containsExactly("other-device");
+        }
+
+        private ResultActions deleteToken(User owner, String token) throws Exception {
+            return mockMvc.perform(delete("/api/users/me/fcm-token")
+                    .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"fcmToken\": \"" + token + "\"}"));
         }
 
         private ResultActions registerToken(User owner, String token) throws Exception {

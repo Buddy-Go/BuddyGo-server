@@ -38,6 +38,7 @@ public class NoticeCommentNotificationService {
                 .filter(commenters::contains)
                 .forEach(receivers::add);
         notificationSender.send(NotificationType.NOTICE_COMMENT_CREATED, receivers, actor.getId(),
-                NotificationTarget.notice(gatheringId, notice.getId()), NotificationMessages.noticeCommented());
+                NotificationTarget.notice(gatheringId, notice.getId()),
+                NotificationMessages.noticeCommented(notice.getGathering().getTitle()));
     }
 }
