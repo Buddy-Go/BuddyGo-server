@@ -50,4 +50,6 @@ tasks.named('test') {
     systemProperty 'scheduler.enabled', 'false'
     // 테스트는 Redis DB 15 를 쓴다(AuthIntegrationTest 가 테스트마다 비운다). 로컬 개발용 DB 0 을 건드리지 않게 한다.
     systemProperty 'spring.data.redis.database', '15'
+    // FIREBASE_CREDENTIALS_PATH 가 셸에 있어도 테스트가 FCM 에 실제로 보내지 않게 푸시를 끈다(시스템 속성이 환경 변수보다 우선).
+    systemProperty 'push.credentials-path', ''
 }
