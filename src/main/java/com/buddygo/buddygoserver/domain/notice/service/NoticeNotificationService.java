@@ -25,6 +25,7 @@ public class NoticeNotificationService {
         notificationSender.send(edited ? NotificationType.NOTICE_UPDATED : NotificationType.NOTICE_CREATED,
                 participationRepository.findConfirmedUserIds(gatheringId), actor.getId(),
                 NotificationTarget.notice(gatheringId, notice.getId()),
-                edited ? NotificationMessages.noticeUpdated() : NotificationMessages.noticeCreated());
+                edited ? NotificationMessages.noticeUpdated(notice.getGathering().getTitle())
+                        : NotificationMessages.noticeCreated(notice.getGathering().getTitle()));
     }
 }

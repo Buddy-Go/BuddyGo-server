@@ -85,6 +85,7 @@ class NoticeIntegrationTest extends IntegrationTest {
         assertThat(notifications.findAll()).hasSize(2).allSatisfy(n -> {
             assertThat(n.getType()).isEqualTo("NOTICE_CREATED");
             assertThat(n.getReceiver().getId()).isIn(member.getId(), other.getId());
+            assertThat(n.getMessage()).isEqualTo("'모임' 모임에 새 공지가 올라왔어요.");
         });
     }
 
