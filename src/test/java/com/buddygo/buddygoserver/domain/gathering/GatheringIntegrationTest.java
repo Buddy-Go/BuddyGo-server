@@ -38,6 +38,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -80,6 +81,7 @@ class GatheringIntegrationTest extends IntegrationTest {
     @Autowired JwtTokenProvider jwtTokenProvider;
     @Autowired EntityManager entityManager;
     @Autowired GatheringLikeRepository gatheringLikeRepository;
+    @Autowired JdbcTemplate jdbcTemplate;
 
     User host;
     User member;
@@ -362,6 +364,40 @@ class GatheringIntegrationTest extends IntegrationTest {
                     .andExpect(jsonPath("$.data.gym.parts[*].bodyPart").value(contains("CHEST", "BACK")))
                     .andExpect(jsonPath("$.data.gym.parts[0].minValue").value(70))
                     .andExpect(jsonPath("$.data.gym.parts[1].recordShown").value(false));
+        }
+
+        @Test
+        void 성별_조건을_바꾸면_맞지_않게_된_대기_신청만_자동_거절되고_알림이_간다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Participation female = participate(id, other, ParticipationStatus.PENDING);
+            Participation male = participate(id, member, ParticipationStatus.PENDING);
+
+            update(host, id, "{\"genderRule\": \"MALE_ONLY\"}").andExpect(status().isOk());
+            flushAndClear();
+
+            Participation rejected = participationRepository.findById(female.getId()).orElseThrow();
+            assertThat(rejected.getStatus()).isEqualTo(ParticipationStatus.REJECTED);
+            assertThat(rejected.getRejectReason()).isEqualTo(RejectReason.GENDER_RULE_CHANGED);
+            assertThat(rejected.getDecidedAt()).isEqualTo(NOW);
+            assertThat(participationRepository.findById(male.getId()).orElseThrow().isPending()).isTrue();
+            assertThat(jdbcTemplate.queryForList(
+                    "select receiver_id, message from notifications where gathering_id = ? and type = 'APPLICATION_REJECTED'", id))
+                    .singleElement()
+                    .satisfies(row -> {
+                        assertThat(row.get("receiver_id")).isEqualTo(other.getId());
+                        assertThat((String) row.get("message")).contains("저녁 가슴 같이 하실 분", "성별 조건이 바뀌어");
+                    });
+        }
+
+        @Test
+        void 성별_조건이_그대로면_다른_항목을_바꿔도_대기_신청을_거절하지_않는다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Participation female = participate(id, other, ParticipationStatus.PENDING);
+
+            update(host, id, "{\"durationMinutes\": 120, \"genderRule\": \"ANY\"}").andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(participationRepository.findById(female.getId()).orElseThrow().isPending()).isTrue();
         }
 
         @Test

@@ -63,10 +63,10 @@ public interface ApplicationApi {
             @LoginUserId Long userId, @PathVariable Long gatheringId);
 
     @Operation(summary = "신청 수락",
-            description = "호스트만. 수락하면 즉시 확정 인원에 반영되고, 정원이 차면 모임이 마감(CLOSED)되며 남은 대기 신청은 자동 거절된다.")
+            description = "호스트만. 수락하면 즉시 확정 인원에 반영되고, 정원이 차면 모임이 마감(CLOSED)되며 남은 대기 신청은 자동 거절된다. 신청 뒤 성별 조건이 바뀌어 맞지 않는 신청은 수락할 수 없다(AP004).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수락 성공. gatheringStatus 로 마감 여부를 알 수 있다."),
-            @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님"),
+            @ApiResponse(responseCode = "403", description = "GA002 호스트가 아님 · AP004 성별 조건 불일치"),
             @ApiResponse(responseCode = "404", description = "GA001 없거나 삭제된 모임 · AP001 이 모임의 신청이 아님"),
             @ApiResponse(responseCode = "409", description = "AP005 대기 중이 아님 · GA003 모집중이 아님(데드라인 지남 포함) · AP003 정원 참")
     })

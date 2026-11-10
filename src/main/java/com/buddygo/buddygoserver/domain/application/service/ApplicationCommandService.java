@@ -103,6 +103,7 @@ public class ApplicationCommandService {
 
     /**
      * 수락. 정원(호스트 포함 확정 인원)이 차면 즉시 마감하고 남은 대기 신청을 모두 자동 거절한다.
+     * 신청 뒤 성별 조건이 바뀌었을 수 있으므로 성별 조건을 다시 검사한다.
      */
     public ApplicationResponse accept(Long userId, Long gatheringId, Long applicationId) {
         Instant now = Instant.now(clock);
@@ -110,6 +111,9 @@ public class ApplicationCommandService {
         Participation application = pendingApplicationOf(gathering, applicationId);
         if (!gathering.isRecruiting(now, gatheringProperties.deadlineOf(gathering.getStartAt()))) {
             throw new CustomException(GatheringErrorType.NOT_RECRUITING);
+        }
+        if (!gathering.getGenderRule().allows(application.getUser().getGender())) {
+            throw new CustomException(ApplicationErrorType.GENDER_RULE_MISMATCH);
         }
         long confirmed = participationRepository.countByGatheringIdAndStatus(gatheringId, ParticipationStatus.CONFIRMED);
         if (confirmed >= gathering.getCapacity()) {

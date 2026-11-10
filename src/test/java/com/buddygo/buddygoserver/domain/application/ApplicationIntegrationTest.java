@@ -372,6 +372,22 @@ class ApplicationIntegrationTest extends IntegrationTest {
         }
 
         @Test
+        void 신청_뒤_성별_조건이_바뀌어_맞지_않으면_수락할_수_없다() throws Exception {
+            Gathering gathering = gathering(START, 3);
+            long carolId = appliedId(carol, gathering);
+            // 자동 거절을 거치지 않고 조건만 바뀐 상태(동시에 들어온 신청 등)
+            Gathering managed = gatheringRepository.findById(gathering.getId()).orElseThrow();
+            managed.changeCore(managed.getPlace(), managed.getStartAt(), managed.getDuration(),
+                    managed.getCapacity(), GenderRule.MALE_ONLY);
+            flushAndClear();
+
+            accept(host, gathering, carolId)
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("AP004"));
+            assertThat(participationRepository.findById(carolId).orElseThrow().isPending()).isTrue();
+        }
+
+        @Test
         void 정원이_찬_모임의_신청을_수락하면_AP003() throws Exception {
             Gathering gathering = gathering(START, 2);
             long applicationId = appliedId(alice, gathering);

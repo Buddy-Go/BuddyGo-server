@@ -95,7 +95,8 @@ public interface GatheringApi {
             description = """
                     보낸 항목만 바꾼다(null = 그대로). 설명·상세주소는 빈 문자열이면 지운다. 시작 전까지만 수정할 수 있다.
                     - 확정 참가자(호스트 제외) 0명: 모든 항목
-                    - 1명 이상: 제목·설명·상세주소만. 다른 항목을 보내면 GA005""")
+                    - 1명 이상: 제목·설명·상세주소만. 다른 항목을 보내면 GA005
+                    성별 조건을 바꾸면 새 조건에 맞지 않는 대기 신청은 자동 거절되고 신청자에게 알림이 간다.""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공. 수정된 모임 상세를 돌려준다."),
             @ApiResponse(responseCode = "400", description = "G002 입력값 · GA010 · GA011 · GA012 · GA013 · GA014"),
