@@ -38,4 +38,10 @@ public class UserController implements UserApi {
         userCommandService.registerFcmToken(userId, request.fcmToken());
         return ResponseEntity.ok(SuccessResponse.ok());
     }
+
+    @Override
+    public ResponseEntity<SuccessResponse<Void>> deleteFcmToken(Long userId, FcmTokenRequest request) {
+        userCommandService.deleteFcmToken(userId, request.fcmToken());
+        return ResponseEntity.ok(SuccessResponse.ok());
+    }
 }

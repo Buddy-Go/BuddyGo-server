@@ -25,4 +25,9 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
             DO UPDATE SET user_id = EXCLUDED.user_id, updated_at = EXCLUDED.updated_at
             """, nativeQuery = true)
     void upsert(Long userId, String fcmToken, Instant updatedAt);
+
+    /** 내 토큰만 지운다(로그아웃). 다른 사람에게 옮겨간 토큰은 지우지 않는다. */
+    @Modifying
+    @Query("delete from DeviceToken t where t.user.id = :userId and t.fcmToken = :fcmToken")
+    int deleteByUserIdAndFcmToken(Long userId, String fcmToken);
 }

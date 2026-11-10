@@ -15,6 +15,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -65,5 +66,15 @@ public interface UserApi {
     })
     @PutMapping("/fcm-token")
     ResponseEntity<SuccessResponse<Void>> registerFcmToken(
+            @LoginUserId Long userId, @Valid @RequestBody FcmTokenRequest request);
+
+    @Operation(summary = "푸시 토큰 삭제",
+            description = "로그아웃 직전에 이 기기의 토큰을 보내 이 계정의 푸시를 끊는다. 내 토큰만 지우고, 없거나 다른 계정으로 옮겨간 토큰이어도 200이다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "삭제 성공(없어도 성공)"),
+            @ApiResponse(responseCode = "400", description = "G002 토큰 누락")
+    })
+    @DeleteMapping("/fcm-token")
+    ResponseEntity<SuccessResponse<Void>> deleteFcmToken(
             @LoginUserId Long userId, @Valid @RequestBody FcmTokenRequest request);
 }

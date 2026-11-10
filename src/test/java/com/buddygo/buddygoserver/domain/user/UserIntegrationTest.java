@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -164,6 +165,39 @@ class UserIntegrationTest extends IntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON).content("{\"fcmToken\": \"  \"}"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors.fcmToken").exists());
+        }
+
+        @Test
+        void 로그아웃할_때_지우면_그_기기_토큰만_사라진다() throws Exception {
+            registerToken(user, "phone").andExpect(status().isOk());
+            registerToken(user, "tablet").andExpect(status().isOk());
+
+            deleteToken(user, "phone").andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(deviceTokenRepository.findAllByUserId(user.getId()))
+                    .extracting(DeviceToken::getFcmToken).containsExactly("tablet");
+        }
+
+        @Test
+        void 남의_토큰은_지우지_않고_없는_토큰도_200() throws Exception {
+            User other = userRepository.save(
+                    User.signUpWithEmail("other@example.com", "hash", "이버디", "다른버디", Gender.FEMALE));
+            registerToken(other, "other-device").andExpect(status().isOk());
+
+            deleteToken(user, "other-device").andExpect(status().isOk());
+            deleteToken(user, "missing").andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(deviceTokenRepository.findAllByUserId(other.getId()))
+                    .extracting(DeviceToken::getFcmToken).containsExactly("other-device");
+        }
+
+        private ResultActions deleteToken(User owner, String token) throws Exception {
+            return mockMvc.perform(delete("/api/users/me/fcm-token")
+                    .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"fcmToken\": \"" + token + "\"}"));
         }
 
         private ResultActions registerToken(User owner, String token) throws Exception {
