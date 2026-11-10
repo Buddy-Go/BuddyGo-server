@@ -30,7 +30,7 @@ public class NoticeCommentCommandService {
         var comment = commentRepository.save(NoticeComment.builder().notice(notice).author(author)
                 .content(request.content().strip()).build());
         notifications.commented(notice, author);
-        return CommentResponse.from(comment);
+        return CommentResponse.from(comment, notice.getGathering().getHost().getId());
     }
 
     public void deleteComment(Long userId, Long gatheringId, Long noticeId, Long commentId) {

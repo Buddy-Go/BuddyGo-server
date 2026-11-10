@@ -4,6 +4,7 @@ import com.buddygo.buddygoserver.domain.notice.dto.request.NoticeCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.dto.request.NoticeUpdateRequest;
 import com.buddygo.buddygoserver.domain.notice.dto.response.NoticeResponse;
 import com.buddygo.buddygoserver.domain.notice.entity.Notice;
+import com.buddygo.buddygoserver.domain.notice.repository.NoticeCommentRepository;
 import com.buddygo.buddygoserver.domain.notice.repository.NoticeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.time.Instant;
 public class NoticeCommandService {
     private final NoticeAccess access;
     private final NoticeRepository noticeRepository;
+    private final NoticeCommentRepository commentRepository;
     private final NoticeNotificationService notifications;
     private final Clock clock;
 
@@ -26,7 +28,7 @@ public class NoticeCommandService {
         var notice = noticeRepository.save(Notice.builder().gathering(g)
                 .title(request.title().strip()).content(request.content().strip()).build());
         notifications.noticeChanged(notice, g.getHost(), false);
-        return NoticeResponse.from(notice);
+        return NoticeResponse.from(notice, 0);
     }
 
     public NoticeResponse update(Long userId, Long gatheringId, Long noticeId, NoticeUpdateRequest request) {
@@ -34,7 +36,7 @@ public class NoticeCommandService {
         var notice = access.notice(gatheringId, noticeId);
         notice.edit(request.title(), request.content(), Instant.now(clock));
         notifications.noticeChanged(notice, g.getHost(), true);
-        return NoticeResponse.from(notice);
+        return NoticeResponse.from(notice, commentRepository.countByNoticeId(noticeId));
     }
 
     public void delete(Long userId, Long gatheringId, Long noticeId) {
