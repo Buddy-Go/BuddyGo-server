@@ -41,10 +41,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -85,6 +87,7 @@ class NotificationEventsIntegrationTest extends IntegrationTest {
     User alice;
     User bob;
     User carol;
+    private final List<Long> userIds = new ArrayList<>();
     Place place;
     Gathering gathering;
     Participation carolApplication;
@@ -374,14 +377,20 @@ class NotificationEventsIntegrationTest extends IntegrationTest {
         });
     }
 
+    /** 이 테스트가 만든 사람들이 받은 알림만. 공유 로컬 DB 에 남아 있는 다른 알림은 세지 않는다. */
     private List<Map<String, Object>> rows() {
         flushAndClear();
-        return jdbcTemplate.queryForList("SELECT * FROM notifications");
+        return jdbcTemplate.queryForList("SELECT * FROM notifications WHERE receiver_id IN (" + receiverIds() + ") ORDER BY id");
     }
 
     private List<Map<String, Object>> rows(NotificationType type) {
         flushAndClear();
-        return jdbcTemplate.queryForList("SELECT * FROM notifications WHERE type = ? ORDER BY id", type.name());
+        return jdbcTemplate.queryForList("SELECT * FROM notifications WHERE type = ? AND receiver_id IN ("
+                + receiverIds() + ") ORDER BY id", type.name());
+    }
+
+    private String receiverIds() {
+        return userIds.stream().map(String::valueOf).collect(Collectors.joining(", "));
     }
 
     private String messageOf(NotificationType type) {
@@ -440,7 +449,9 @@ class NotificationEventsIntegrationTest extends IntegrationTest {
     }
 
     private User user(String key, String nickname) {
-        return userRepository.save(User.signUpWithEmail(key + "@example.com", "hash", nickname, key, Gender.FEMALE));
+        User user = userRepository.save(User.signUpWithEmail(key + "@example.com", "hash", nickname, key, Gender.FEMALE));
+        userIds.add(user.getId());
+        return user;
     }
 
     private void flushAndClear() {

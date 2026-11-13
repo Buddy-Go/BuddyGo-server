@@ -12,6 +12,7 @@ import com.buddygo.buddygoserver.domain.notice.entity.Notice;
 import com.buddygo.buddygoserver.domain.notice.entity.NoticeComment;
 import com.buddygo.buddygoserver.domain.notice.repository.NoticeRepository;
 import com.buddygo.buddygoserver.domain.notice.repository.NoticeCommentRepository;
+import com.buddygo.buddygoserver.domain.notification.entity.Notification;
 import com.buddygo.buddygoserver.domain.notification.repository.NotificationRepository;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
@@ -37,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -62,6 +65,7 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
     @Autowired JwtTokenProvider tokens;
     @Autowired EntityManager em;
     User host, member, other, outsider;
+    private final List<Long> userIds = new ArrayList<>();
     Gathering gathering;
     Participation memberParticipation;
 
@@ -107,7 +111,7 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
         request(member, get(path(n) + "/comments"), null).andExpect(status().isOk());
         request(member, post(path(n) + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isConflict());
         request(host, delete(path(n) + "/comments/" + c.getId()), null).andExpect(status().isConflict());
-        assertThat(notifications.count()).isZero();
+        assertThat(myNotifications().size()).isZero();
     }
 
     @Test
@@ -126,8 +130,8 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
         comment(n, other); comment(n, other); comment(n, outsider);
         request(member, post(path(n) + "/comments"), "{\"content\":\"좋아요\"}")
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.authorId").value(member.getId()));
-        assertThat(notifications.findAll()).hasSize(2);
-        assertThat(notifications.findAll().stream().map(x -> x.getReceiver().getId()).toList())
+        assertThat(myNotifications()).hasSize(2);
+        assertThat(myNotifications().stream().map(x -> x.getReceiver().getId()).toList())
                 .containsExactlyInAnyOrder(host.getId(), other.getId());
     }
 
@@ -137,8 +141,8 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
         comment(n, member); comment(n, other);
         memberParticipation.leave(NOW);
         request(host, post(path(n) + "/comments"), "{\"content\":\"확인\"}").andExpect(status().isCreated());
-        assertThat(notifications.findAll()).hasSize(1);
-        assertThat(notifications.findAll().getFirst().getReceiver().getId()).isEqualTo(other.getId());
+        assertThat(myNotifications()).hasSize(1);
+        assertThat(myNotifications().getFirst().getReceiver().getId()).isEqualTo(other.getId());
     }
 
     @Test
@@ -162,7 +166,7 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
         String wrong = base() + "/" + foreign.getId();
         request(host, post(wrong + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isNotFound());
         request(host, delete(path(n) + "/comments/" + c.getId()), null).andExpect(status().isNotFound());
-        assertThat(notifications.count()).isZero();
+        assertThat(myNotifications().size()).isZero();
     }
 
     @Test
@@ -196,7 +200,14 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
     }
 
     private User user(String name) {
-        return users.save(User.signUpWithEmail("notice-" + name + "@example.com", "hash", name, "notice-" + name, Gender.MALE));
+        User user = users.save(User.signUpWithEmail("notice-" + name + "@example.com", "hash", name, "notice-" + name, Gender.MALE));
+        userIds.add(user.getId());
+        return user;
+    }
+
+    /** 이 테스트가 만든 사람들의 알림만. 공유 로컬 DB 에 남아 있는 다른 알림은 세지 않는다. */
+    private List<Notification> myNotifications() {
+        return notifications.findAll().stream().filter(n -> userIds.contains(n.getReceiver().getId())).toList();
     }
     private Gathering gathering() {
         var place = places.save(Place.pinned("버디짐", null, "서울 강남구 역삼동 1", "1168010100",

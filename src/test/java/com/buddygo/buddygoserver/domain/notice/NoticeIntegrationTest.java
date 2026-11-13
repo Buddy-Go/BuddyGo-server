@@ -12,6 +12,7 @@ import com.buddygo.buddygoserver.domain.notice.entity.Notice;
 import com.buddygo.buddygoserver.domain.notice.entity.NoticeComment;
 import com.buddygo.buddygoserver.domain.notice.repository.NoticeRepository;
 import com.buddygo.buddygoserver.domain.notice.repository.NoticeCommentRepository;
+import com.buddygo.buddygoserver.domain.notification.entity.Notification;
 import com.buddygo.buddygoserver.domain.notification.repository.NotificationRepository;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
@@ -38,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -63,6 +66,7 @@ class NoticeIntegrationTest extends IntegrationTest {
     @Autowired JwtTokenProvider tokens;
     @Autowired EntityManager em;
     User host, member, other, outsider;
+    private final List<Long> userIds = new ArrayList<>();
     Gathering gathering;
     Participation memberParticipation;
 
@@ -82,7 +86,7 @@ class NoticeIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.edited").value(false))
                 .andExpect(jsonPath("$.data.authorId").value(host.getId()));
         em.flush();
-        assertThat(notifications.findAll()).hasSize(2).allSatisfy(n -> {
+        assertThat(myNotifications()).hasSize(2).allSatisfy(n -> {
             assertThat(n.getType()).isEqualTo("NOTICE_CREATED");
             assertThat(n.getReceiver().getId()).isIn(member.getId(), other.getId());
             assertThat(n.getMessage()).isEqualTo("'모임' 모임에 새 공지가 올라왔어요.");
@@ -98,7 +102,7 @@ class NoticeIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.data.edited").value(true))
                 .andExpect(jsonPath("$.data.editedAt").value(NOW.toString()));
         request(member, get(path(n)), null).andExpect(status().isOk());
-        assertThat(notifications.findAll()).hasSize(2).allMatch(noti -> noti.getType().equals("NOTICE_UPDATED"));
+        assertThat(myNotifications()).hasSize(2).allMatch(noti -> noti.getType().equals("NOTICE_UPDATED"));
     }
 
     @Test
@@ -107,7 +111,7 @@ class NoticeIntegrationTest extends IntegrationTest {
         request(member, post(base()), "{\"title\":\"공지\",\"content\":\"내용\"}").andExpect(status().isForbidden());
         request(member, patch(path(n)), "{\"title\":\"변경\"}").andExpect(status().isForbidden());
         request(member, delete(path(n)), null).andExpect(status().isForbidden());
-        assertThat(notifications.count()).isZero();
+        assertThat(myNotifications().size()).isZero();
     }
 
     @ParameterizedTest
@@ -137,7 +141,7 @@ class NoticeIntegrationTest extends IntegrationTest {
         request(host, post(base()), "{\"title\":\"공지\",\"content\":\"본문\"}").andExpect(status().isConflict());
         request(host, patch(path(n)), "{\"title\":\"변경\"}").andExpect(status().isConflict());
         request(host, delete(path(n)), null).andExpect(status().isConflict());
-        assertThat(notifications.count()).isZero();
+        assertThat(myNotifications().size()).isZero();
     }
 
     @Test
@@ -153,7 +157,7 @@ class NoticeIntegrationTest extends IntegrationTest {
         em.flush(); em.clear();
         assertThat(notices.findById(id)).isEmpty();
         assertThat(comments.count()).isZero();
-        assertThat(notifications.findAll()).hasSize(2).allMatch(x -> x.getNoticeId() == null);
+        assertThat(myNotifications()).hasSize(2).allMatch(x -> x.getNoticeId() == null);
     }
 
     @Test
@@ -163,7 +167,7 @@ class NoticeIntegrationTest extends IntegrationTest {
         request(host, get(wrong), null).andExpect(status().isNotFound());
         request(host, patch(wrong), "{\"title\":\"변경\"}").andExpect(status().isNotFound());
         request(host, delete(wrong), null).andExpect(status().isNotFound());
-        assertThat(notifications.count()).isZero();
+        assertThat(myNotifications().size()).isZero();
     }
 
     @Test
@@ -224,7 +228,7 @@ class NoticeIntegrationTest extends IntegrationTest {
     void 잘못된_수정요청은_400(String body) throws Exception {
         Notice n = notice(gathering);
         request(host, patch(path(n)), body).andExpect(status().isBadRequest());
-        assertThat(notifications.count()).isZero();
+        assertThat(myNotifications().size()).isZero();
     }
 
     @Test
@@ -251,7 +255,14 @@ class NoticeIntegrationTest extends IntegrationTest {
     }
 
     private User user(String name) {
-        return users.save(User.signUpWithEmail("notice-" + name + "@example.com", "hash", name, "notice-" + name, Gender.MALE));
+        User user = users.save(User.signUpWithEmail("notice-" + name + "@example.com", "hash", name, "notice-" + name, Gender.MALE));
+        userIds.add(user.getId());
+        return user;
+    }
+
+    /** 이 테스트가 만든 사람들의 알림만. 공유 로컬 DB 에 남아 있는 다른 알림은 세지 않는다. */
+    private List<Notification> myNotifications() {
+        return notifications.findAll().stream().filter(n -> userIds.contains(n.getReceiver().getId())).toList();
     }
     private Gathering gathering() {
         var place = places.save(Place.pinned("버디짐", null, "서울 강남구 역삼동 1", "1168010100",
