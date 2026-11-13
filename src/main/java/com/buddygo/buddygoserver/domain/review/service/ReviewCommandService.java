@@ -72,7 +72,7 @@ public class ReviewCommandService {
         Review review = reviewRepository.saveAndFlush(Review.of(context.gathering(),
                 userRepository.getReferenceById(userId), target, request.rating(), comment));
 
-        Set<ReviewTagType> tags = request.tags() == null ? Set.of() : request.tags();
+        Set<ReviewTagType> tags = request.tags();
         List<ReviewTagType> sortedTags = tags.stream().sorted().toList();
         reviewTagRepository.saveAll(sortedTags.stream().map(tag -> ReviewTag.of(review, tag)).toList());
 

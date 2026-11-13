@@ -50,11 +50,11 @@ public interface ReviewApi {
             @LoginUserId Long userId, @PathVariable Long gatheringId);
 
     @Operation(summary = "평가 제출", description = """
-            한 사람에 대한 평가. 판정(필수) + 태그(선택, 판정과 상관없이 긍정·부정 모두 가능) + 한마디(선택, 200자).
+            한 사람에 대한 평가. 판정(필수) + 태그(필수 1~5개, 판정과 상관없이 긍정·부정 모두 가능) + 한마디(선택, 200자).
             제출하면 상대 매너온도에 곧바로 반영되고, 고치거나 지울 수 없다. 사람마다 한 번씩 따로 제출한다.""")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "제출 성공"),
-            @ApiResponse(responseCode = "400", description = "G002 입력값(판정 없음, 한마디 200자 초과) · G003 읽을 수 없는 본문(없는 판정·태그 이름) · R004 평가할 수 없는 상대(본인, 노쇼, 이 모임에서 체크인하지 않은 사람)"),
+            @ApiResponse(responseCode = "400", description = "G002 입력값(판정 없음, 태그 없음·6개 이상, 한마디 200자 초과) · G003 읽을 수 없는 본문(없는 판정·태그 이름) · R004 평가할 수 없는 상대(본인, 노쇼, 이 모임에서 체크인하지 않은 사람)"),
             @ApiResponse(responseCode = "404", description = "GA001 없는 모임"),
             @ApiResponse(responseCode = "409", description = "R001 끝나지 않았거나 취소된 모임, 또는 내가 체크인하지 않은 모임 · R002 이미 평가함 · R003 기한 지남")
     })

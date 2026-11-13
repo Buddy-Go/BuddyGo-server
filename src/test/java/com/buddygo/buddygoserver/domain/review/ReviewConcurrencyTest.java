@@ -14,6 +14,7 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
 import com.buddygo.buddygoserver.domain.review.dto.request.ReviewSubmitRequest;
 import com.buddygo.buddygoserver.domain.review.enums.ReviewRating;
+import com.buddygo.buddygoserver.domain.review.enums.ReviewTagType;
 import com.buddygo.buddygoserver.domain.review.service.ReviewCommandService;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
@@ -35,6 +36,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -123,8 +125,9 @@ class ReviewConcurrencyTest extends IntegrationTest {
                 .isEqualByComparingTo("37.00");
     }
 
+    /** 좋음 + 긍정·부정 태그 하나씩: 태그 점수가 상쇄돼 한 건에 +0.50 */
     private static ReviewSubmitRequest good(Long targetId) {
-        return new ReviewSubmitRequest(targetId, ReviewRating.GOOD, null, null);
+        return new ReviewSubmitRequest(targetId, ReviewRating.GOOD, Set.of(ReviewTagType.KIND, ReviewTagType.ON_PHONE), null);
     }
 
     private void checkIn(Participation participation) {
