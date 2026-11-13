@@ -40,6 +40,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -114,9 +115,9 @@ class ReviewIntegrationTest extends IntegrationTest {
                     .andExpect(status().isCreated());
             assertThat(exactTemperature(host)).isEqualByComparingTo("36.90");
 
-            // 아쉬움에 긍정 태그가 많아도 올라가지 않는다: -0.5 + 0.1 × 7 = +0.2 → 0
+            // 아쉬움에 긍정 태그를 최대로 골라도 올라가지 않는다: -0.5 + 0.1 × 5 = 0
             submit(host, gathering.getId(), member.getId(), "BAD",
-                    "[\"PUNCTUAL\", \"GOOD_MANNERS\", \"KIND\", \"FUN_ATMOSPHERE\", \"GOOD_COACHING\", \"SIMILAR_LEVEL\", \"WANT_AGAIN\"]",
+                    "[\"PUNCTUAL\", \"GOOD_MANNERS\", \"KIND\", \"FUN_ATMOSPHERE\", \"WANT_AGAIN\"]",
                     null).andExpect(status().isCreated());
             assertThat(exactTemperature(member)).isEqualByComparingTo("36.50");
         }
@@ -144,9 +145,10 @@ class ReviewIntegrationTest extends IntegrationTest {
         @Test
         void 끝났지만_종료_처리가_늦어_아직_진행중인_모임도_평가할_수_있다() throws Exception {
             setStatus(GatheringStatus.IN_PROGRESS);
-            submit(member, gathering.getId(), host.getId(), "NORMAL", null, null).andExpect(status().isCreated());
+            submit(member, gathering.getId(), host.getId(), "NORMAL", "[\"KIND\", \"ON_PHONE\"]", null)
+                    .andExpect(status().isCreated());
 
-            // 보통에 태그가 없으면 점수 0: 온도는 그대로지만 평가마다 이력은 하나씩 남는다
+            // 보통에 긍정·부정 태그가 하나씩이면 점수 0: 온도는 그대로지만 평가마다 이력은 하나씩 남는다
             assertThat(exactTemperature(host)).isEqualByComparingTo("36.50");
             assertThat(count("SELECT count(*) FROM manner_temperature_logs WHERE user_id = ? AND reason = 'REVIEW' "
                     + "AND delta = 0", host.getId())).isEqualTo(1);
@@ -154,8 +156,8 @@ class ReviewIntegrationTest extends IntegrationTest {
 
         @Test
         void 같은_사람을_두_번_평가하면_R002() throws Exception {
-            submit(member, gathering.getId(), host.getId(), "GOOD", null, null).andExpect(status().isCreated());
-            submit(member, gathering.getId(), host.getId(), "BAD", null, null)
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", null).andExpect(status().isCreated());
+            submit(member, gathering.getId(), host.getId(), "BAD", "[\"ON_PHONE\"]", null)
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("R002"));
         }
@@ -163,7 +165,7 @@ class ReviewIntegrationTest extends IntegrationTest {
         @Test
         void 본인_노쇼한_사람_체크인하지_않은_사람은_평가할_수_없다_R004() throws Exception {
             for (User target : new User[]{member, noShow, outsider}) {
-                submit(member, gathering.getId(), target.getId(), "GOOD", null, null)
+                submit(member, gathering.getId(), target.getId(), "GOOD", "[\"KIND\"]", null)
                         .andExpect(status().isBadRequest())
                         .andExpect(jsonPath("$.code").value("R004"));
             }
@@ -172,7 +174,7 @@ class ReviewIntegrationTest extends IntegrationTest {
         @Test
         void 노쇼했거나_참여하지_않은_사람은_평가할_수_없다_R001() throws Exception {
             for (User evaluator : new User[]{noShow, outsider}) {
-                submit(evaluator, gathering.getId(), host.getId(), "GOOD", null, null)
+                submit(evaluator, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", null)
                         .andExpect(status().isConflict())
                         .andExpect(jsonPath("$.code").value("R001"));
             }
@@ -182,7 +184,7 @@ class ReviewIntegrationTest extends IntegrationTest {
         @EnumSource(value = GatheringStatus.class, names = {"CLOSED", "CANCELED"})
         void 진행되지_않았거나_취소된_모임은_R001(GatheringStatus status) throws Exception {
             setStatus(status);
-            submit(member, gathering.getId(), host.getId(), "GOOD", null, null)
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", null)
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("R001"));
         }
@@ -191,39 +193,59 @@ class ReviewIntegrationTest extends IntegrationTest {
         void 아직_끝나지_않은_모임은_R001() throws Exception {
             mutableClock.fix(END.minusSeconds(1));
             setStatus(GatheringStatus.IN_PROGRESS);
-            submit(member, gathering.getId(), host.getId(), "GOOD", null, null)
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", null)
                     .andExpect(jsonPath("$.code").value("R001"));
         }
 
         @Test
         void 종료_후_3일이_되는_순간부터는_R003() throws Exception {
             mutableClock.fix(END.plus(Duration.ofDays(3)).minusSeconds(1));
-            submit(member, gathering.getId(), host.getId(), "GOOD", null, null).andExpect(status().isCreated());
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", null).andExpect(status().isCreated());
 
             mutableClock.fix(END.plus(Duration.ofDays(3)));
-            submit(host, gathering.getId(), member.getId(), "GOOD", null, null)
+            submit(host, gathering.getId(), member.getId(), "GOOD", "[\"KIND\"]", null)
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.code").value("R003"));
         }
 
         @Test
         void 없는_모임은_GA001() throws Exception {
-            submit(member, Long.MAX_VALUE, host.getId(), "GOOD", null, null)
+            submit(member, Long.MAX_VALUE, host.getId(), "GOOD", "[\"KIND\"]", null)
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value("GA001"));
         }
 
         @Test
         void 판정이_없거나_한마디가_200자를_넘으면_G002_없는_태그면_G003() throws Exception {
-            submit(member, gathering.getId(), host.getId(), null, null, null)
+            submit(member, gathering.getId(), host.getId(), null, "[\"KIND\"]", null)
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("G002"));
-            submit(member, gathering.getId(), host.getId(), "GOOD", null, "가".repeat(201))
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", "가".repeat(201))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("G002"));
             submit(member, gathering.getId(), host.getId(), "GOOD", "[\"UNKNOWN_TAG\"]", null)
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("G003"));
+        }
+
+        @Test
+        void 태그가_없거나_6개_이상이면_G002_5개까지는_된다() throws Exception {
+            submit(member, gathering.getId(), host.getId(), "GOOD", null, null)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("G002"));
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[]", null)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("G002"));
+            submit(member, gathering.getId(), host.getId(), "GOOD",
+                    "[\"PUNCTUAL\", \"GOOD_MANNERS\", \"KIND\", \"FUN_ATMOSPHERE\", \"WANT_AGAIN\", \"ON_PHONE\"]", null)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("G002"));
+            assertThat(count("SELECT count(*) FROM reviews WHERE gathering_id = ?", gathering.getId())).isZero();
+
+            submit(member, gathering.getId(), host.getId(), "GOOD",
+                    "[\"PUNCTUAL\", \"GOOD_MANNERS\", \"KIND\", \"FUN_ATMOSPHERE\", \"WANT_AGAIN\"]", null)
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.tags", hasSize(5)));
         }
 
         @Test
@@ -247,7 +269,7 @@ class ReviewIntegrationTest extends IntegrationTest {
 
         @Test
         void 나를_뺀_체크인한_사람과_평가_여부_기한을_준다() throws Exception {
-            submit(member, gathering.getId(), host.getId(), "GOOD", null, null);
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", null);
 
             targets(member, gathering.getId())
                     .andExpect(status().isOk())
@@ -299,7 +321,7 @@ class ReviewIntegrationTest extends IntegrationTest {
                     .andExpect(jsonPath("$.data.gatherings[1].remainingCount").value(1))
                     .andExpect(jsonPath("$.data.gatherings[1].deadlineAt").value("2026-11-12T22:00:00Z"));
 
-            submit(member, gathering.getId(), host.getId(), "GOOD", null, null);
+            submit(member, gathering.getId(), host.getId(), "GOOD", "[\"KIND\"]", null);
             pending(member)
                     .andExpect(jsonPath("$.data.gatherings[*].gatheringId").value(contains(older.getId().intValue())));
         }
