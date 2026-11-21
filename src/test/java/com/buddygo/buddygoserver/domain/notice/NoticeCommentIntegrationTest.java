@@ -111,6 +111,8 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
         request(member, get(path(n) + "/comments"), null).andExpect(status().isOk());
         request(member, post(path(n) + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isConflict());
         request(host, delete(path(n) + "/comments/" + c.getId()), null).andExpect(status().isConflict());
+        request(member, post(path(n) + "/comments/" + c.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isConflict());
         assertThat(myNotifications().size()).isZero();
     }
 
@@ -194,9 +196,148 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
         request(member, post(url), "{\"content\":\"" + "가".repeat(200) + "\"}").andExpect(status().isCreated());
         request(member, get(url).param("page", "-1"), null).andExpect(status().isBadRequest());
         request(member, get(url).param("size", "101"), null).andExpect(status().isBadRequest());
+        reply(comment(n, member), host);
         gatherings.deleteWithChildren(gathering.getId());
         request(member, get(url), null).andExpect(status().isNotFound());
         request(member, post(url), "{\"content\":\"댓글\"}").andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 답글은_원댓글아래_작성순으로_담기고_페이지는_원댓글로_나눈다() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment first = comment(n, member);
+        NoticeComment second = comment(n, other);
+        request(other, post(path(n) + "/comments/" + first.getId() + "/replies"), "{\"content\":\" 답글1 \"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.parentCommentId").value(first.getId()))
+                .andExpect(jsonPath("$.data.content").value("답글1"))
+                .andExpect(jsonPath("$.data.replies").isEmpty());
+        request(host, post(path(n) + "/comments/" + first.getId() + "/replies"), "{\"content\":\"답글2\"}")
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.authorHost").value(true));
+        request(member, get(path(n) + "/comments").param("size", "1"), null)
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].commentId").value(first.getId()))
+                .andExpect(jsonPath("$.data.content[0].parentCommentId").isEmpty())
+                .andExpect(jsonPath("$.data.content[0].replies[0].content").value("답글1"))
+                .andExpect(jsonPath("$.data.content[0].replies[1].content").value("답글2"))
+                .andExpect(jsonPath("$.data.content[0].replies[1].parentCommentId").value(first.getId()))
+                .andExpect(jsonPath("$.data.hasNext").value(true));
+        request(member, get(path(n) + "/comments").param("size", "1").param("page", "1"), null)
+                .andExpect(jsonPath("$.data.content[0].commentId").value(second.getId()))
+                .andExpect(jsonPath("$.data.content[0].replies").isEmpty())
+                .andExpect(jsonPath("$.data.hasNext").value(false));
+        request(member, get(path(n)), null).andExpect(jsonPath("$.data.commentCount").value(4));
+        request(member, get(base()), null).andExpect(jsonPath("$.data.content[0].commentCount").value(4));
+    }
+
+    @Test
+    void 답글에는_답글을_달수없고_없는댓글_다른공지댓글에도_달수없다() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment root = comment(n, member);
+        NoticeComment child = reply(root, other);
+        NoticeComment foreign = comment(notice(gathering), other);
+        request(member, post(path(n) + "/comments/" + child.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("N006"));
+        request(member, post(path(n) + "/comments/" + foreign.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("N002"));
+        request(member, post(path(n) + "/comments/" + root.getId() + "/replies"), "{\"content\":\" \"}")
+                .andExpect(status().isBadRequest());
+        request(outsider, post(path(n) + "/comments/" + root.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isForbidden());
+        assertThat(myNotifications()).isEmpty();
+    }
+
+    @Test
+    void 답글알림은_원댓글작성자에게_답글알림_나머지는_댓글알림으로_한번씩() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment root = comment(n, member);
+        comment(n, other);
+        request(other, post(path(n) + "/comments/" + root.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isCreated());
+        assertThat(myNotifications()).extracting(x -> x.getReceiver().getId(), Notification::getType)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(member.getId(), "NOTICE_COMMENT_REPLIED"),
+                        org.assertj.core.groups.Tuple.tuple(host.getId(), "NOTICE_COMMENT_CREATED"));
+    }
+
+    @Test
+    void 원댓글작성자가_호스트면_답글알림만_받고_자기댓글에_단_답글은_알리지않는다() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment hostRoot = comment(n, host);
+        request(member, post(path(n) + "/comments/" + hostRoot.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isCreated());
+        assertThat(myNotifications()).extracting(x -> x.getReceiver().getId(), Notification::getType)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(host.getId(), "NOTICE_COMMENT_REPLIED"));
+        notifications.deleteAll(myNotifications());
+
+        request(host, post(path(n) + "/comments/" + hostRoot.getId() + "/replies"), "{\"content\":\"추가\"}")
+                .andExpect(status().isCreated());
+        assertThat(myNotifications()).extracting(x -> x.getReceiver().getId(), Notification::getType)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(member.getId(), "NOTICE_COMMENT_CREATED"));
+    }
+
+    @Test
+    void 나간_원댓글작성자는_답글알림을_받지않는다() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment root = comment(n, member);
+        memberParticipation.leave(NOW);
+        request(other, post(path(n) + "/comments/" + root.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isCreated());
+        assertThat(myNotifications()).extracting(x -> x.getReceiver().getId()).containsExactly(host.getId());
+    }
+
+    @Test
+    void 답글이_남은_원댓글은_삭제표시되고_마지막답글이_지워지면_함께_지워진다() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment root = comment(n, member);
+        NoticeComment r1 = reply(root, other);
+        NoticeComment r2 = reply(root, host);
+        request(member, delete(path(n) + "/comments/" + root.getId()), null).andExpect(status().isOk());
+        request(other, get(path(n) + "/comments"), null)
+                .andExpect(jsonPath("$.data.content[0].commentId").value(root.getId()))
+                .andExpect(jsonPath("$.data.content[0].deleted").value(true))
+                .andExpect(jsonPath("$.data.content[0].content").isEmpty())
+                .andExpect(jsonPath("$.data.content[0].authorId").isEmpty())
+                .andExpect(jsonPath("$.data.content[0].replies.length()").value(2));
+        request(other, get(path(n)), null).andExpect(jsonPath("$.data.commentCount").value(2));
+        request(host, delete(path(n) + "/comments/" + root.getId()), null)
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("N002"));
+        request(other, post(path(n) + "/comments/" + root.getId() + "/replies"), "{\"content\":\"답글\"}")
+                .andExpect(status().isNotFound());
+
+        request(other, delete(path(n) + "/comments/" + r1.getId()), null).andExpect(status().isOk());
+        em.flush(); em.clear();
+        assertThat(comments.findById(root.getId())).isPresent();
+        request(host, delete(path(n) + "/comments/" + r2.getId()), null).andExpect(status().isOk());
+        em.flush(); em.clear();
+        assertThat(comments.findById(root.getId())).isEmpty();
+        request(other, get(path(n) + "/comments"), null).andExpect(jsonPath("$.data.content").isEmpty());
+    }
+
+    @Test
+    void 삭제표시되지_않은_원댓글의_답글을_지우면_원댓글은_남는다() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment root = comment(n, member);
+        NoticeComment r = reply(root, other);
+        request(member, delete(path(n) + "/comments/" + r.getId()), null)
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("N003"));
+        request(host, delete(path(n) + "/comments/" + r.getId()), null).andExpect(status().isOk());
+        em.flush(); em.clear();
+        assertThat(comments.findById(root.getId())).get().extracting(NoticeComment::isDeleted).isEqualTo(false);
+        assertThat(comments.findById(r.getId())).isEmpty();
+    }
+
+    @Test
+    void 답글이_있는_공지를_지우면_댓글과_답글이_함께_지워진다() throws Exception {
+        Notice n = notice(gathering);
+        NoticeComment root = comment(n, member);
+        reply(root, other);
+        request(member, delete(path(n) + "/comments/" + root.getId()), null).andExpect(status().isOk());
+        reply(comment(n, other), host);
+        request(host, delete(path(n)), null).andExpect(status().isOk());
+        em.flush(); em.clear();
+        assertThat(em.createQuery("select count(c) from NoticeComment c where c.notice.id = :id", Long.class)
+                .setParameter("id", n.getId()).getSingleResult()).isZero();
     }
 
     private User user(String name) {
@@ -223,6 +364,9 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
     private Notice notice(Gathering g) { return notices.save(Notice.builder().gathering(g).title("공지").content("본문").build()); }
     private NoticeComment comment(Notice n, User author) {
         return comments.save(NoticeComment.builder().notice(n).author(author).content("댓글").build());
+    }
+    private NoticeComment reply(NoticeComment parent, User author) {
+        return comments.save(NoticeComment.replyTo(parent, author, "답글"));
     }
     private String base() { return "/api/gatherings/" + gathering.getId() + "/notices"; }
     private String path(Notice n) { return base() + "/" + n.getId(); }
