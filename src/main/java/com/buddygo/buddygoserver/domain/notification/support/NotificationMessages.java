@@ -81,6 +81,10 @@ public final class NotificationMessages {
         return "%s 모임 공지에 새 댓글이 달렸어요.".formatted(quote(title));
     }
 
+    public static String noticeCommentReplied(String title) {
+        return "%s 모임 공지의 내 댓글에 답글이 달렸어요.".formatted(quote(title));
+    }
+
     public static String buddyRequestReceived(String senderNickname) {
         return "%s님이 버디 신청을 보냈어요.".formatted(senderNickname);
     }

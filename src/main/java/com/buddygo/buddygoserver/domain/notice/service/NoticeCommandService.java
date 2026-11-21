@@ -36,7 +36,7 @@ public class NoticeCommandService {
         var notice = access.notice(gatheringId, noticeId);
         notice.edit(request.title(), request.content(), Instant.now(clock));
         notifications.noticeChanged(notice, g.getHost(), true);
-        return NoticeResponse.from(notice, commentRepository.countByNoticeId(noticeId));
+        return NoticeResponse.from(notice, commentRepository.countVisibleByNoticeId(noticeId));
     }
 
     public void delete(Long userId, Long gatheringId, Long noticeId) {

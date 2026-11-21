@@ -10,11 +10,13 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
 import com.buddygo.buddygoserver.domain.notice.dto.request.CommentCreateRequest;
 import com.buddygo.buddygoserver.domain.notice.entity.Notice;
+import com.buddygo.buddygoserver.domain.notice.exception.NoticeErrorType;
 import com.buddygo.buddygoserver.domain.notice.repository.NoticeRepository;
 import com.buddygo.buddygoserver.domain.notice.service.NoticeCommentCommandService;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.enums.Gender;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
+import com.buddygo.buddygoserver.global.exception.CustomException;
 import com.buddygo.buddygoserver.global.security.jwt.JwtTokenProvider;
 import com.buddygo.buddygoserver.support.IntegrationTest;
 import com.jayway.jsonpath.JsonPath;
@@ -35,7 +37,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -158,6 +162,103 @@ class NoticeCommentTransactionIntegrationTest extends IntegrationTest {
         })).isInstanceOf(IllegalStateException.class).hasMessage("롤백 검증");
         assertThat(jdbc.queryForObject("select count(*) from notice_comments where notice_id = ?", Long.class, noticeId)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from notifications where notice_id = ?", Long.class, noticeId)).isZero();
+    }
+
+    /**
+     * 답글 작성과 원댓글 삭제는 둘 다 모임 행을 먼저 잠그므로 어느 쪽이 먼저든 결과가 일관된다.
+     * 답글이 먼저면 원댓글은 삭제 표시되고 답글이 남는다. 삭제가 먼저면 원댓글이 지워지고 답글은 N002로 실패한다.
+     * 잠금이 없으면 삭제가 "답글 없음"을 읽은 뒤 답글이 들어와 원댓글 실제 삭제가 자기 참조 FK에 걸린다(500).
+     * 순서는 강제할 수 없으므로 여러 번 반복한다.
+     */
+    @Test
+    void 답글작성과_원댓글삭제가_동시에_일어나도_결과가_일관된다() throws Exception {
+        long noticeId = createNotice();
+        for (int round = 0; round < 20; round++) {
+            long rootId = commands.comment(memberId, gatheringId, noticeId, new CommentCreateRequest("원댓글")).commentId();
+            Object[] results = race(
+                    () -> commands.reply(otherId, gatheringId, noticeId, rootId, new CommentCreateRequest("답글")),
+                    () -> { commands.deleteComment(memberId, gatheringId, noticeId, rootId); return "deleted"; });
+            assertThat(results[1]).as("삭제는 항상 성공").isEqualTo("deleted");
+            Long replies = jdbc.queryForObject("select count(*) from notice_comments where parent_id = ?", Long.class, rootId);
+            var root = jdbc.queryForList("select deleted_at, content from notice_comments where id = ?", rootId);
+            if (results[0] instanceof Throwable failure) {
+                assertThat(failure).isInstanceOf(CustomException.class);
+                assertThat(((CustomException) failure).getErrorType()).isEqualTo(NoticeErrorType.COMMENT_NOT_FOUND);
+                assertThat(root).isEmpty();
+                assertThat(replies).isZero();
+            } else {
+                assertThat(root).hasSize(1);
+                assertThat(root.getFirst().get("deleted_at")).isNotNull();
+                assertThat(root.getFirst().get("content")).isNull();
+                assertThat(replies).isEqualTo(1);
+            }
+        }
+    }
+
+    @Test
+    void 별도요청에서_답글작성과_원댓글_삭제표시가_커밋된다() throws Exception {
+        long noticeId = createNotice();
+        String url = "/api/gatherings/" + gatheringId + "/notices/" + noticeId + "/comments";
+        String json = mvc.perform(post(url).header(HttpHeaders.AUTHORIZATION, auth(memberId))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"댓글\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long rootId = ((Number) JsonPath.read(json, "$.data.commentId")).longValue();
+        mvc.perform(post(url + "/" + rootId + "/replies").header(HttpHeaders.AUTHORIZATION, auth(otherId))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"답글\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(delete(url + "/" + rootId).header(HttpHeaders.AUTHORIZATION, auth(memberId)))
+                .andExpect(status().isOk());
+        mvc.perform(get(url).header(HttpHeaders.AUTHORIZATION, auth(hostId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].deleted").value(true))
+                .andExpect(jsonPath("$.data.content[0].replies[0].authorId").value(otherId));
+        assertThat(jdbc.queryForObject("select count(*) from notifications where notice_id = ? and type = 'NOTICE_COMMENT_REPLIED' and receiver_id = ?",
+                Long.class, noticeId, memberId)).isEqualTo(1);
+    }
+
+    @Test
+    void 실패시_답글과_답글알림이_함께_롤백된다() {
+        long noticeId = createNotice();
+        long rootId = commands.comment(memberId, gatheringId, noticeId, new CommentCreateRequest("원댓글")).commentId();
+        long before = jdbc.queryForObject("select count(*) from notifications where notice_id = ?", Long.class, noticeId);
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            commands.reply(otherId, gatheringId, noticeId, rootId, new CommentCreateRequest("답글"));
+            throw new IllegalStateException("롤백 검증");
+        })).isInstanceOf(IllegalStateException.class).hasMessage("롤백 검증");
+        assertThat(jdbc.queryForObject("select count(*) from notice_comments where parent_id = ?", Long.class, rootId)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from notifications where notice_id = ?", Long.class, noticeId)).isEqualTo(before);
+    }
+
+    /** 두 작업을 동시에 시작하고, 각각의 결과 또는 던진 예외를 돌려준다. */
+    private Object[] race(Callable<?> a, Callable<?> b) throws Exception {
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+            for (Callable<?> task : new Callable<?>[]{a, b}) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("시작 대기 초과");
+                    return task.call();
+                }));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            Object[] results = new Object[2];
+            for (int i = 0; i < 2; i++) {
+                try {
+                    results[i] = futures.get(i).get(20, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    results[i] = e.getCause();
+                }
+            }
+            return results;
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     private long createNotice() {

@@ -27,6 +27,10 @@ public class NoticeCommentController implements NoticeCommentApi {
         return ResponseEntity.status(HttpStatus.CREATED).body(SuccessResponse.created(commandService.comment(userId, gatheringId, noticeId, request)));
     }
     @Override
+    public ResponseEntity<SuccessResponse<CommentResponse>> reply(Long userId, Long gatheringId, Long noticeId, Long commentId, CommentCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(SuccessResponse.created(commandService.reply(userId, gatheringId, noticeId, commentId, request)));
+    }
+    @Override
     public ResponseEntity<SuccessResponse<Void>> deleteComment(Long userId, Long gatheringId, Long noticeId, Long commentId) {
         commandService.deleteComment(userId, gatheringId, noticeId, commentId);
         return ResponseEntity.ok(SuccessResponse.ok());
