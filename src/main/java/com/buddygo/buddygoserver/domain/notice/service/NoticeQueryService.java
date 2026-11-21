@@ -39,7 +39,7 @@ public class NoticeQueryService {
     public NoticeResponse detail(Long userId, Long gatheringId, Long noticeId) {
         access.read(userId, gatheringId);
         var notice = access.notice(gatheringId, noticeId);
-        return NoticeResponse.from(notice, commentRepository.countByNoticeId(noticeId));
+        return NoticeResponse.from(notice, commentRepository.countVisibleByNoticeId(noticeId));
     }
 
 }

@@ -38,6 +38,8 @@ public enum NotificationType {
     NOTICE_UPDATED,
     /** 공지 댓글 → 호스트(내 공지), 그 공지에 댓글 단 참가자 */
     NOTICE_COMMENT_CREATED,
+    /** 내 댓글에 답글 → 원댓글 작성자(호스트 또는 현재 확정 참가자일 때) */
+    NOTICE_COMMENT_REPLIED,
     // 버디
     /** 버디 신청 받음 → 받은 사람 */
     BUDDY_REQUEST_RECEIVED,
