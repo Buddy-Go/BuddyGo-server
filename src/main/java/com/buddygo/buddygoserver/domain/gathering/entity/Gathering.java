@@ -137,11 +137,21 @@ public class Gathering extends BaseEntity {
         this.detailAddress = detailAddress;
     }
 
+    /** 일시·장소. 실제로 바뀌었으면 true 를 돌려준다(대기 신청 자동 거절 여부). */
+    public boolean changeSchedule(Place place, Instant startAt, Duration duration) {
+        Instant endAt = startAt.plus(duration);
+        boolean changed = !this.place.getId().equals(place.getId())
+                || !this.startAt.equals(startAt) || !this.endAt.equals(endAt);
+        if (changed) {
+            this.place = place;
+            this.startAt = startAt;
+            this.endAt = endAt;
+        }
+        return changed;
+    }
+
     /** 확정 참가자(호스트 제외)가 없을 때만 바꿀 수 있는 항목 */
-    public void changeCore(Place place, Instant startAt, Duration duration, short capacity, GenderRule genderRule) {
-        this.place = place;
-        this.startAt = startAt;
-        this.endAt = startAt.plus(duration);
+    public void changeTerms(short capacity, GenderRule genderRule) {
         this.capacity = capacity;
         this.genderRule = genderRule;
     }

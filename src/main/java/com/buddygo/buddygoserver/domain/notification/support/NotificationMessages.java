@@ -33,6 +33,10 @@ public final class NotificationMessages {
         return "%s 모임의 성별 조건이 바뀌어 신청이 거절됐어요.".formatted(quote(title));
     }
 
+    public static String applicationRejectedScheduleChanged(String title) {
+        return "%s 모임의 일시·장소가 바뀌어 신청이 취소됐어요. 바뀐 일정이 괜찮으면 다시 신청해 주세요.".formatted(quote(title));
+    }
+
     public static String applicationRejectedDeleted(String title) {
         return "%s 모임이 삭제되어 신청이 거절됐어요.".formatted(quote(title));
     }

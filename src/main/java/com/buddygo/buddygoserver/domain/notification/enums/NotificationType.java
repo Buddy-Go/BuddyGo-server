@@ -10,7 +10,7 @@ public enum NotificationType {
     APPLICATION_RECEIVED,
     /** 신청 수락 → 신청자 */
     APPLICATION_ACCEPTED,
-    /** 신청 거절(호스트 거절, 정원 마감·모임 취소·삭제로 자동 거절) → 신청자 */
+    /** 신청 거절(호스트 거절, 정원 마감·모임 취소·삭제·성별 조건·일시·장소 변경으로 자동 거절) → 신청자 */
     APPLICATION_REJECTED,
     // 마감
     /** 정원이 다 차 모임 확정 → 호스트 + 확정 참가자 */

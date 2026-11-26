@@ -40,6 +40,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -85,7 +86,7 @@ public class GatheringCommandService {
 
     /**
      * 수정. 확정 참가자(호스트 제외)가 0명이면 모든 항목, 1명 이상이면 제목·설명·상세주소만 바꿀 수 있다.
-     * 잠긴 항목을 보내면 무시하지 않고 거절한다.
+     * 잠긴 항목을 보내면 무시하지 않고 거절한다. 확정 참가자가 있는 모임의 시작 시각은 구성원 모두가 동의하는 변경 제안으로만 바뀐다.
      */
     public GatheringDetailResponse update(Long userId, Long gatheringId, GatheringUpdateRequest request) {
         Instant now = Instant.now(clock);
@@ -106,10 +107,11 @@ public class GatheringCommandService {
             GenderRule previousGenderRule = gathering.getGenderRule();
             GenderRule genderRule = request.genderRule() != null ? request.genderRule() : previousGenderRule;
             validateGenderRule(genderRule, gathering.getHost());
-            gathering.changeCore(
-                    request.place() != null ? findOrCreatePlace(request.place(), now) : gathering.getPlace(),
+            boolean scheduleChanged = request.changesSchedule() && gathering.changeSchedule(
+                    request.place() != null ? resolvePlace(request.place(), gathering.getPlace(), now) : gathering.getPlace(),
                     request.startAt() != null ? request.startAt() : gathering.getStartAt(),
-                    request.durationMinutes() != null ? toDuration(request.durationMinutes()) : gathering.getDuration(),
+                    request.durationMinutes() != null ? toDuration(request.durationMinutes()) : gathering.getDuration());
+            gathering.changeTerms(
                     request.capacity() != null ? toCapacity(request.capacity()) : gathering.getCapacity(),
                     genderRule);
             if (request.gym() != null) {
@@ -118,9 +120,28 @@ public class GatheringCommandService {
             if (genderRule != previousGenderRule) {
                 rejectPendingNotAllowedBy(gathering, now);
             }
+            // 성별 조건 거절 뒤에 남은 대기 신청을 읽으므로 한 신청자가 거절 알림을 두 번 받지 않는다
+            if (scheduleChanged) {
+                rejectPendingOnScheduleChange(gathering, now);
+            }
         }
 
         return gatheringQueryService.getDetail(gatheringId, userId);
+    }
+
+    /**
+     * 일시·장소가 바뀌면 대기 신청은 바뀌기 전 정보를 보고 낸 것이므로 자동 거절한다. 신청자가 바뀐 일정을 확인하기 전에
+     * 호스트가 수락해 동의 없이 확정되는 일을 막는다(모집중이면 다시 신청할 수 있다). 모임 행을 잠근 상태에서 부른다.
+     */
+    private void rejectPendingOnScheduleChange(Gathering gathering, Instant now) {
+        List<Long> pending = participationRepository.findPendingUserIds(gathering.getId());
+        if (pending.isEmpty()) {
+            return;
+        }
+        participationRepository.rejectAllPending(gathering.getId(), RejectReason.SCHEDULE_CHANGED, now);
+        notificationSender.send(NotificationType.APPLICATION_REJECTED, pending, null,
+                NotificationTarget.gathering(gathering.getId()),
+                NotificationMessages.applicationRejectedScheduleChanged(gathering.getTitle()));
     }
 
     /**
@@ -245,6 +266,24 @@ public class GatheringCommandService {
         if (!genderRule.allows(host.getGender())) {
             throw new CustomException(GatheringErrorType.GENDER_RULE_NOT_ALLOWED);
         }
+    }
+
+    /**
+     * 수정 요청의 장소. 지금 장소와 같으면(카카오 장소는 ID, 집결지는 이름·주소·좌표) 그대로 쓴다.
+     * 앱이 바뀌지 않은 집결지를 다시 보내도 새 장소 행이 생기거나 일시·장소 변경으로 처리되지 않게 한다.
+     */
+    private Place resolvePlace(PlaceRequest request, Place current, Instant now) {
+        String kakaoPlaceId = blankToNull(request.kakaoPlaceId());
+        boolean same = kakaoPlaceId != null
+                ? kakaoPlaceId.equals(current.getKakaoPlaceId())
+                : current.getKakaoPlaceId() == null
+                        && request.name().equals(current.getName())
+                        && Objects.equals(blankToNull(request.roadAddress()), current.getRoadAddress())
+                        && request.jibunAddress().equals(current.getJibunAddress())
+                        && request.regionCode().equals(current.getRegionCode())
+                        && request.longitude() == current.getLocation().getX()
+                        && request.latitude() == current.getLocation().getY();
+        return same ? current : findOrCreatePlace(request, now);
     }
 
     /** 카카오 장소는 kakao_place_id 로 찾거나 만들고, 지도에서 찍은 집결지는 새로 만든다. */

@@ -10,7 +10,7 @@ import java.time.Instant;
 
 /**
  * 보낸 항목만 바꾼다(null = 그대로). 설명·상세주소는 빈 문자열을 보내면 지운다.
- * 확정 참가자(호스트 제외)가 있으면 제목·설명·상세주소만 바꿀 수 있다.
+ * 확정 참가자(호스트 제외)가 있으면 제목·설명·상세주소만 바꿀 수 있다. 일시·장소가 바뀌면 대기 신청은 자동 거절된다.
  */
 public record GatheringUpdateRequest(
         @Schema(example = "저녁 가슴·팔 같이 하실 분")
@@ -45,7 +45,11 @@ public record GatheringUpdateRequest(
 
     /** 확정 참가자가 있으면 잠기는 항목을 바꾸려 하는지 */
     public boolean changesCore() {
-        return startAt != null || durationMinutes != null || capacity != null
-                || genderRule != null || place != null || gym != null;
+        return changesSchedule() || capacity != null || genderRule != null || gym != null;
+    }
+
+    /** 일시·장소를 바꾸려 하는지 */
+    public boolean changesSchedule() {
+        return startAt != null || durationMinutes != null || place != null;
     }
 }
