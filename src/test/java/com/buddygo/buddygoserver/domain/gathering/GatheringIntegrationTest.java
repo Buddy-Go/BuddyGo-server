@@ -47,6 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -421,6 +422,89 @@ class GatheringIntegrationTest extends IntegrationTest {
         }
 
         @Test
+        void 일시_장소가_바뀌면_대기_신청은_자동_거절되고_다시_신청하라고_알린다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Participation pending = participate(id, other, ParticipationStatus.PENDING);
+
+            update(host, id, """
+                    {"startAt": "2026-11-10T04:00:00Z", "durationMinutes": 60,
+                     "place": {"kakaoPlaceId": "999", "name": "새 헬스장", "jibunAddress": "서울 마포구 서교동 1",
+                               "regionCode": "1144012000", "latitude": 37.55, "longitude": 126.92}}""")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.startAt").value("2026-11-10T04:00:00Z"))
+                    .andExpect(jsonPath("$.data.endAt").value("2026-11-10T05:00:00Z"))
+                    .andExpect(jsonPath("$.data.place.name").value("새 헬스장"))
+                    .andExpect(jsonPath("$.data.pendingCount").value(0));
+            flushAndClear();
+
+            Participation rejected = participationRepository.findById(pending.getId()).orElseThrow();
+            assertThat(rejected.getStatus()).isEqualTo(ParticipationStatus.REJECTED);
+            assertThat(rejected.getRejectReason()).isEqualTo(RejectReason.SCHEDULE_CHANGED);
+            assertThat(rejected.getDecidedAt()).isEqualTo(NOW);
+            assertThat(jdbcTemplate.queryForList(
+                    "select receiver_id, message from notifications where gathering_id = ? and type = 'APPLICATION_REJECTED'", id))
+                    .singleElement()
+                    .satisfies(row -> {
+                        assertThat(row.get("receiver_id")).isEqualTo(other.getId());
+                        assertThat((String) row.get("message")).contains("일시·장소가 바뀌어", "다시 신청");
+                    });
+        }
+
+        @Test
+        void 일시_장소가_그대로면_대기_신청을_거절하지_않는다() throws Exception {
+            long id = createdId(host, body("27484196", "[\"CHEST\"]", false));
+            Participation pending = participate(id, other, ParticipationStatus.PENDING);
+
+            update(host, id, """
+                    {"startAt": "2026-11-10T03:00:00Z", "durationMinutes": 90,
+                     "place": {"kakaoPlaceId": "27484196", "name": "버디짐", "roadAddress": "서울 강남구 테헤란로 123",
+                               "jibunAddress": "서울 강남구 역삼동 123-45", "regionCode": "1168010100",
+                               "latitude": 37.5009, "longitude": 127.0364}}""")
+                    .andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(participationRepository.findById(pending.getId()).orElseThrow().isPending()).isTrue();
+            assertThat(notifiedUserIds(id, "APPLICATION_REJECTED")).isEmpty();
+        }
+
+        @Test
+        void 바뀌지_않은_집결지를_다시_보내면_장소를_새로_만들지_않고_대기_신청도_그대로다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Participation pending = participate(id, other, ParticipationStatus.PENDING);
+            flushAndClear();
+            Long placeId = gatheringRepository.findById(id).orElseThrow().getPlace().getId();
+
+            update(host, id, """
+                    {"title": "제목만 고침",
+                     "place": {"name": "버디짐", "roadAddress": "서울 강남구 테헤란로 123",
+                               "jibunAddress": "서울 강남구 역삼동 123-45", "regionCode": "1168010100",
+                               "latitude": 37.5009, "longitude": 127.0364}}""")
+                    .andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(gatheringRepository.findById(id).orElseThrow().getPlace().getId()).isEqualTo(placeId);
+            assertThat(participationRepository.findById(pending.getId()).orElseThrow().isPending()).isTrue();
+        }
+
+        @Test
+        void 일시와_성별_조건을_함께_바꾸면_대기_신청자마다_거절_알림이_한_번씩_간다() throws Exception {
+            long id = createdId(host, body(null, "[\"CHEST\"]", false));
+            Participation female = participate(id, other, ParticipationStatus.PENDING);
+            Participation male = participate(id, member, ParticipationStatus.PENDING);
+
+            update(host, id, "{\"startAt\": \"2026-11-10T04:00:00Z\", \"genderRule\": \"MALE_ONLY\"}")
+                    .andExpect(status().isOk());
+            flushAndClear();
+
+            assertThat(participationRepository.findById(female.getId()).orElseThrow().getRejectReason())
+                    .isEqualTo(RejectReason.GENDER_RULE_CHANGED);
+            assertThat(participationRepository.findById(male.getId()).orElseThrow().getRejectReason())
+                    .isEqualTo(RejectReason.SCHEDULE_CHANGED);
+            assertThat(notifiedUserIds(id, "APPLICATION_REJECTED"))
+                    .containsExactlyInAnyOrder(other.getId(), member.getId());
+        }
+
+        @Test
         void 확정_참가자가_있으면_제목_설명_상세주소만_바꿀_수_있다() throws Exception {
             long id = createdId(host, body(null, "[\"CHEST\"]", false));
             participate(id, member, ParticipationStatus.CONFIRMED);
@@ -429,9 +513,13 @@ class GatheringIntegrationTest extends IntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.title").value("새 제목"))
                     .andExpect(jsonPath("$.data.place.detailAddress").value("4층"));
-            update(host, id, "{\"title\": \"새 제목\", \"capacity\": 2}")
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.code").value("GA005"));
+            for (String locked : List.of("{\"startAt\": \"2026-11-10T04:00:00Z\"}", "{\"durationMinutes\": 60}",
+                    "{\"capacity\": 2}", "{\"genderRule\": \"MALE_ONLY\"}",
+                    "{\"gym\": {\"parts\": [\"BACK\"], \"showMyRecord\": false}}")) {
+                update(host, id, locked)
+                        .andExpect(status().isConflict())
+                        .andExpect(jsonPath("$.code").value("GA005"));
+            }
         }
 
         @Test
@@ -765,6 +853,11 @@ class GatheringIntegrationTest extends IntegrationTest {
                 startAt, Duration.ofMinutes(60), (short) 3, GenderRule.ANY));
         participationRepository.save(Participation.hostOf(gathering, NOW));
         return gathering;
+    }
+
+    private List<Long> notifiedUserIds(long gatheringId, String type) {
+        return jdbcTemplate.queryForList("select receiver_id from notifications where gathering_id = ? and type = ?",
+                Long.class, gatheringId, type);
     }
 
     private void flushAndClear() {
