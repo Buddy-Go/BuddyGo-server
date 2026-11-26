@@ -394,7 +394,7 @@ class GatheringIntegrationTest extends IntegrationTest {
             long id = createdId(host, body(null, "[\"CHEST\"]", false));
             Participation female = participate(id, other, ParticipationStatus.PENDING);
 
-            update(host, id, "{\"durationMinutes\": 120, \"genderRule\": \"ANY\"}").andExpect(status().isOk());
+            update(host, id, "{\"capacity\": 2, \"genderRule\": \"ANY\"}").andExpect(status().isOk());
             flushAndClear();
 
             assertThat(participationRepository.findById(female.getId()).orElseThrow().isPending()).isTrue();

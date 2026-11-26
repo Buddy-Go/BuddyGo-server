@@ -131,10 +131,10 @@ class NoticeIntegrationTest extends IntegrationTest {
         if (state.equals("FINISHED")) gathering.finish();
         if (state.equals("EXPIRED")) {
             gathering.close();
-            gathering.changeCore(gathering.getPlace(), NOW.minusSeconds(3600), Duration.ofHours(1), (short) 3, GenderRule.ANY);
+            gathering.changeSchedule(gathering.getPlace(), NOW.minusSeconds(3600), Duration.ofHours(1));
         }
         if (state.equals("UNFILLED")) {
-            gathering.changeCore(gathering.getPlace(), NOW.plusSeconds(5400), Duration.ofHours(1), (short) 3, GenderRule.ANY);
+            gathering.changeSchedule(gathering.getPlace(), NOW.plusSeconds(5400), Duration.ofHours(1));
         }
         request(member, get(base()), null).andExpect(status().isOk());
         request(member, get(path(n)), null).andExpect(status().isOk());

@@ -103,10 +103,10 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
         if (state.equals("FINISHED")) gathering.finish();
         if (state.equals("EXPIRED")) {
             gathering.close();
-            gathering.changeCore(gathering.getPlace(), NOW.minusSeconds(3600), Duration.ofHours(1), (short) 3, GenderRule.ANY);
+            gathering.changeSchedule(gathering.getPlace(), NOW.minusSeconds(3600), Duration.ofHours(1));
         }
         if (state.equals("UNFILLED")) {
-            gathering.changeCore(gathering.getPlace(), NOW.plusSeconds(5400), Duration.ofHours(1), (short) 3, GenderRule.ANY);
+            gathering.changeSchedule(gathering.getPlace(), NOW.plusSeconds(5400), Duration.ofHours(1));
         }
         request(member, get(path(n) + "/comments"), null).andExpect(status().isOk());
         request(member, post(path(n) + "/comments"), "{\"content\":\"댓글\"}").andExpect(status().isConflict());
@@ -119,7 +119,7 @@ class NoticeCommentIntegrationTest extends IntegrationTest {
     @Test
     void 진행중에는_댓글을_쓸수있다() throws Exception {
         gathering.close();
-        gathering.changeCore(gathering.getPlace(), NOW.minusSeconds(60), Duration.ofHours(1), (short) 3, GenderRule.ANY);
+        gathering.changeSchedule(gathering.getPlace(), NOW.minusSeconds(60), Duration.ofHours(1));
         gathering.start();
         Notice n = notice(gathering);
         request(member, post(path(n) + "/comments"), "{\"content\":\"곧 도착해요\"}")

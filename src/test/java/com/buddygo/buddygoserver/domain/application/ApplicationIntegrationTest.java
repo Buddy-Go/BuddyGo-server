@@ -377,8 +377,7 @@ class ApplicationIntegrationTest extends IntegrationTest {
             long carolId = appliedId(carol, gathering);
             // 자동 거절을 거치지 않고 조건만 바뀐 상태(동시에 들어온 신청 등)
             Gathering managed = gatheringRepository.findById(gathering.getId()).orElseThrow();
-            managed.changeCore(managed.getPlace(), managed.getStartAt(), managed.getDuration(),
-                    managed.getCapacity(), GenderRule.MALE_ONLY);
+            managed.changeTerms(managed.getCapacity(), GenderRule.MALE_ONLY);
             flushAndClear();
 
             accept(host, gathering, carolId)
