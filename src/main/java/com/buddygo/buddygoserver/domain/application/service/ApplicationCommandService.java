@@ -16,6 +16,7 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository
 import com.buddygo.buddygoserver.domain.sport.gym.dto.request.GymRecordRequest;
 import com.buddygo.buddygoserver.domain.sport.gym.service.ApplicationGymService;
 import com.buddygo.buddygoserver.domain.application.event.ApplicationSubmittedEvent;
+import com.buddygo.buddygoserver.domain.gathering.event.GatheringRosterChangedEvent;
 import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
 import com.buddygo.buddygoserver.domain.notification.enums.NotificationType;
 import com.buddygo.buddygoserver.domain.notification.service.NotificationSender;
@@ -136,6 +137,7 @@ public class ApplicationCommandService {
             notificationSender.send(NotificationType.APPLICATION_REJECTED, autoRejected, null, target,
                     NotificationMessages.applicationRejectedFull(gathering.getTitle()));
         }
+        eventPublisher.publishEvent(new GatheringRosterChangedEvent(gatheringId, userId));
         return ApplicationResponse.from(application);
     }
 
@@ -195,6 +197,8 @@ public class ApplicationCommandService {
                     .orElseThrow(() -> new CustomException(UserErrorType.NOT_FOUND));
             mannerTemperatureService.applyLeave(leaver, gatheringId, afterDeadline);
         }
+        // 모집중이든 마감이든 확정 명단이 바뀌었다(진행 중인 시간 변경 제안은 무산된다)
+        eventPublisher.publishEvent(new GatheringRosterChangedEvent(gatheringId, userId));
         return ApplicationResponse.from(participation);
     }
 

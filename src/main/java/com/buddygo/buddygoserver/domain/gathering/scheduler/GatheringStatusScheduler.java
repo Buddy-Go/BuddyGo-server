@@ -75,7 +75,7 @@ public class GatheringStatusScheduler implements SchedulingConfigurer {
      * 모든 전이 시점이 놓이는 간격: 시작 시각 단위, 진행 시간 단위, 데드라인·체크인 열림·노쇼 오프셋의 최대공약수.
      * 시작 시각 단위가 1시간의 약수라 결과도 1시간의 약수다. cron 이 분 단위라 1분 이상 정수 분이어야 한다.
      */
-    static Duration tickOf(GatheringProperties gathering, CheckInProperties checkIn) {
+    public static Duration tickOf(GatheringProperties gathering, CheckInProperties checkIn) {
         long seconds = List.of(gathering.startTimeStep(), gathering.durationStep(),
                         gathering.deadlineBeforeStart(), checkIn.openBeforeStart(), checkIn.noShowAfterStart()).stream()
                 .map(d -> BigInteger.valueOf(d.toSeconds()))
@@ -91,7 +91,7 @@ public class GatheringStatusScheduler implements SchedulingConfigurer {
     }
 
     /** 1시간의 약수인 간격을 매시 정각 기준 cron 으로 바꾼다. 예) 10분 → 매시 :00, :10, …, :50 */
-    static String cronOf(Duration tick) {
+    public static String cronOf(Duration tick) {
         long minutes = tick.toMinutes();
         return minutes == 60 ? "0 0 * * * *" : "0 */" + minutes + " * * * *";
     }

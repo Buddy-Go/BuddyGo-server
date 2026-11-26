@@ -19,6 +19,7 @@ import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository
 import com.buddygo.buddygoserver.domain.gathering.repository.PlaceRepository;
 import com.buddygo.buddygoserver.domain.sport.gym.service.GatheringGymService;
 import com.buddygo.buddygoserver.domain.gathering.event.GatheringCreatedEvent;
+import com.buddygo.buddygoserver.domain.gathering.event.GatheringRosterChangedEvent;
 import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
 import com.buddygo.buddygoserver.domain.notification.enums.NotificationType;
 import com.buddygo.buddygoserver.domain.notification.service.NotificationSender;
@@ -59,6 +60,7 @@ public class GatheringCommandService {
     private final ApplicationEventPublisher eventPublisher;
     private final GatheringGymService gatheringGymService;
     private final GatheringQueryService gatheringQueryService;
+    private final GatheringScheduleService gatheringScheduleService;
     private final GatheringProperties gatheringProperties;
     private final Clock clock;
 
@@ -122,26 +124,11 @@ public class GatheringCommandService {
             }
             // 성별 조건 거절 뒤에 남은 대기 신청을 읽으므로 한 신청자가 거절 알림을 두 번 받지 않는다
             if (scheduleChanged) {
-                rejectPendingOnScheduleChange(gathering, now);
+                gatheringScheduleService.rejectPendingOnScheduleChange(gathering, now);
             }
         }
 
         return gatheringQueryService.getDetail(gatheringId, userId);
-    }
-
-    /**
-     * 일시·장소가 바뀌면 대기 신청은 바뀌기 전 정보를 보고 낸 것이므로 자동 거절한다. 신청자가 바뀐 일정을 확인하기 전에
-     * 호스트가 수락해 동의 없이 확정되는 일을 막는다(모집중이면 다시 신청할 수 있다). 모임 행을 잠근 상태에서 부른다.
-     */
-    private void rejectPendingOnScheduleChange(Gathering gathering, Instant now) {
-        List<Long> pending = participationRepository.findPendingUserIds(gathering.getId());
-        if (pending.isEmpty()) {
-            return;
-        }
-        participationRepository.rejectAllPending(gathering.getId(), RejectReason.SCHEDULE_CHANGED, now);
-        notificationSender.send(NotificationType.APPLICATION_REJECTED, pending, null,
-                NotificationTarget.gathering(gathering.getId()),
-                NotificationMessages.applicationRejectedScheduleChanged(gathering.getTitle()));
     }
 
     /**
@@ -205,6 +192,7 @@ public class GatheringCommandService {
                 NotificationMessages.canceledByHost(gathering.getTitle(), reason.strip()));
         notificationSender.send(NotificationType.APPLICATION_REJECTED, autoRejected, null, target,
                 NotificationMessages.applicationRejectedCanceled(gathering.getTitle()));
+        eventPublisher.publishEvent(new GatheringRosterChangedEvent(gatheringId, userId));
     }
 
     /**
