@@ -17,8 +17,8 @@ import java.time.Instant;
 /**
  * 시간 변경 제안의 시각 규칙. 응답 기한(expiresAt)이 지나기 전에만 응답할 수 있으므로, 통과 시점에도 아래가 성립한다.
  * <ul>
- *   <li>마감: 원래 체크인이 열리기 전이고, 새 시작 시각이 지금 + min-lead 이후(새 체크인도 아직 열리지 않음)</li>
- *   <li>모집중: 원래 데드라인과 새 데드라인이 모두 지나지 않음(통과하자마자 정원 미달 취소 대상이 되지 않음)</li>
+ *   <li>마감: 기존 시작 시각의 체크인이 열리기 전이고, 제안한 시작 시각이 현재 시각 + min-lead 보다 뒤(바뀐 시각의 체크인도 아직 열리지 않음)</li>
+ *   <li>모집중: 기존 데드라인과 제안한 시작 시각의 데드라인이 모두 지나지 않음(통과하자마자 정원 미달 취소 대상이 되지 않음)</li>
  * </ul>
  */
 @Component
@@ -47,19 +47,19 @@ public class TimeProposalPolicy {
         }
         if (toStartAt.equals(from) || Duration.between(from, toStartAt).abs().compareTo(properties.maxShift()) > 0) {
             throw new CustomException(TimeProposalErrorType.INVALID_START_AT,
-                    "새 시작 시각은 지금 시작 시각과 달라야 하고 앞뒤 " + properties.maxShift().toMinutes() + "분 안이어야 합니다.");
+                    "제안한 시작 시각은 기존 시작 시각과 달라야 하고, 기존 시작 시각에서 앞뒤 " + properties.maxShift().toMinutes() + "분 안이어야 합니다.");
         }
         boolean recruiting = gathering.getStatus() == GatheringStatus.RECRUITING;
         if (!now.isBefore(limitOf(from, recruiting))) {
             throw new CustomException(TimeProposalErrorType.TOO_LATE, recruiting
-                    ? "모집 중인 모임은 데드라인 전까지만 시간 변경을 제안할 수 있습니다."
-                    : "체크인이 열리기 전까지만 시간 변경을 제안할 수 있습니다.");
+                    ? "모집 중인 모임은 기존 데드라인 전까지만 시간 변경을 제안할 수 있습니다."
+                    : "기존 시작 시각의 체크인이 열리기 전까지만 시간 변경을 제안할 수 있습니다.");
         }
         if (!now.isBefore(newStartLimitOf(toStartAt, recruiting))) {
             throw new CustomException(TimeProposalErrorType.INVALID_START_AT, recruiting
-                    ? "모집 중인 모임의 새 시작 시각은 지금부터 " + gatheringProperties.deadlineBeforeStart().toMinutes()
-                            + "분 이후여야 합니다."
-                    : "새 시작 시각은 지금부터 " + properties.minLead().toMinutes() + "분 이후여야 합니다.");
+                    ? "모집 중인 모임은 현재 시각보다 " + gatheringProperties.deadlineBeforeStart().toMinutes()
+                            + "분 넘게 뒤인 시작 시각만 제안할 수 있습니다."
+                    : "제안한 시작 시각은 현재 시각보다 " + properties.minLead().toMinutes() + "분 넘게 뒤여야 합니다.");
         }
     }
 
@@ -85,12 +85,12 @@ public class TimeProposalPolicy {
         return Duration.ofSeconds(seconds);
     }
 
-    /** 지금 시작 시각 기준 기한: 모집중은 데드라인, 마감은 체크인 열림 */
+    /** 기존 시작 시각 기준 기한: 모집중은 데드라인, 마감은 체크인 열림 */
     private Instant limitOf(Instant startAt, boolean recruiting) {
         return recruiting ? gatheringProperties.deadlineOf(startAt) : checkInProperties.openAt(startAt);
     }
 
-    /** 새 시작 시각 기준 기한: 모집중은 새 데드라인, 마감은 새 시작 - min-lead */
+    /** 제안한 시작 시각 기준 기한: 모집중은 그 시각의 데드라인, 마감은 그 시각 - min-lead */
     private Instant newStartLimitOf(Instant toStartAt, boolean recruiting) {
         return recruiting ? gatheringProperties.deadlineOf(toStartAt) : toStartAt.minus(properties.minLead());
     }

@@ -155,7 +155,7 @@ class TimeProposalIntegrationTest extends IntegrationTest {
         }
 
         @Test
-        void 마감_모임의_새_시작은_지금부터_30분_이후여야_한다() throws Exception {
+        void 마감_모임의_제안_시각은_현재_시각보다_30분_넘게_뒤여야_한다() throws Exception {
             mutableClock.fix(Instant.parse("2026-11-10T02:10:00Z"));
             propose(alice, "2026-11-10T02:40:00Z")
                     .andExpect(status().isBadRequest())
