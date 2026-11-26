@@ -8,6 +8,7 @@ import com.buddygo.buddygoserver.domain.gathering.config.GatheringProperties;
 import com.buddygo.buddygoserver.domain.gathering.entity.Gathering;
 import com.buddygo.buddygoserver.domain.gathering.entity.GatheringCancellation;
 import com.buddygo.buddygoserver.domain.gathering.enums.GatheringStatus;
+import com.buddygo.buddygoserver.domain.gathering.event.GatheringRosterChangedEvent;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringCancellationRepository;
 import com.buddygo.buddygoserver.domain.gathering.repository.GatheringRepository;
 import com.buddygo.buddygoserver.domain.manner.service.MannerTemperatureService;
@@ -18,6 +19,7 @@ import com.buddygo.buddygoserver.domain.notification.support.NotificationTarget;
 import com.buddygo.buddygoserver.domain.user.entity.User;
 import com.buddygo.buddygoserver.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +49,7 @@ public class GatheringStatusService {
     private final NotificationSender notificationSender;
     private final GatheringProperties gatheringProperties;
     private final CheckInProperties checkInProperties;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** 데드라인이 지났는데 아직 모집중(정원 미달)인 모임 */
     @Transactional(readOnly = true)
@@ -94,6 +97,7 @@ public class GatheringStatusService {
                 NotificationMessages.canceledUnderCapacity(gathering.getTitle()));
         notificationSender.send(NotificationType.APPLICATION_REJECTED, autoRejected, null, target,
                 NotificationMessages.applicationRejectedCanceled(gathering.getTitle()));
+        eventPublisher.publishEvent(new GatheringRosterChangedEvent(gatheringId, null));
     }
 
     public void start(Long gatheringId, Instant now) {

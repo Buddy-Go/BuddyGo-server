@@ -17,6 +17,15 @@ public enum NotificationType {
     GATHERING_CLOSED,
     /** 참가자가 데드라인 전에 나가 다시 모집 → 호스트 + 남은 확정 참가자 */
     MEMBER_LEFT_REOPENED,
+    // 시간 변경 제안
+    /** 시작 시각 변경 제안 → 제안자를 뺀 구성원(호스트 포함 확정 참가자) */
+    TIME_CHANGE_PROPOSED,
+    /** 모두 수락해 시작 시각이 바뀜 → 마지막으로 수락한 사람을 뺀 구성원 */
+    TIME_CHANGE_APPROVED,
+    /** 한 명이 거절해 무산 → 거절한 사람을 뺀 구성원 */
+    TIME_CHANGE_REJECTED,
+    /** 철회(제안자 제외)·만료(모두)·확정 명단 변경(남은 구성원, 바꾼 사람 제외)으로 무산. 모임이 취소된 경우는 보내지 않는다 */
+    TIME_CHANGE_CANCELED,
     // 취소
     /** 참가자가 데드라인 후에 나가 모임 취소(방폭) → 호스트 + 남은 확정 참가자 */
     GATHERING_CANCELED_MEMBER_LEFT,
