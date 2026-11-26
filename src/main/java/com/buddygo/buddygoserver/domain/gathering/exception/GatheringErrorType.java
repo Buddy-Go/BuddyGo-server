@@ -16,7 +16,7 @@ public enum GatheringErrorType implements BaseErrorType {
     NOT_HOST(HttpStatus.FORBIDDEN, "GA002", "호스트만 할 수 있습니다."),
     NOT_RECRUITING(HttpStatus.CONFLICT, "GA003", "모집 중인 모임이 아닙니다."),
     HAS_CONFIRMED_PARTICIPANTS(HttpStatus.CONFLICT, "GA004", "확정된 참가자가 있어 삭제할 수 없습니다. 모임 취소를 이용해 주세요."),
-    EDIT_RESTRICTED(HttpStatus.CONFLICT, "GA005", "확정된 참가자가 있으면 제목·설명·상세주소만 수정할 수 있습니다."),
+    EDIT_RESTRICTED(HttpStatus.CONFLICT, "GA005", "확정된 참가자가 있으면 제목·설명·상세주소만 수정할 수 있습니다. 시작 시각은 시간 변경 제안으로 바꿔 주세요."),
     PARTICIPANTS_NOT_VISIBLE(HttpStatus.FORBIDDEN, "GA006", "마감된 모임의 참가자만 명단을 볼 수 있습니다."),
     NO_CONFIRMED_PARTICIPANTS(HttpStatus.CONFLICT, "GA007", "확정된 참가자가 없는 모임은 취소하지 않고 삭제합니다."),
     ALREADY_STARTED(HttpStatus.CONFLICT, "GA008", "이미 시작된 모임입니다."),

@@ -61,6 +61,12 @@ check-in:
   # 모임 장소에서 이 거리(m) 안에서만 체크인된다
   radius-meters: 50
 
+time-proposal:
+  # 시간 변경 제안의 새 시작 시각은 지금 시작 시각 ± 이 값 안
+  max-shift: 1h
+  # 마감 모임의 새 시작 시각은 지금 + 이 값 이후(체크인 열림보다 길어야 한다)
+  min-lead: 30m
+
 review:
   # 평가 기한: 모임 종료 후 이 기간 안에만 평가할 수 있다
   deadline-after-end: 3d

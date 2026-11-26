@@ -49,6 +49,30 @@ public final class NotificationMessages {
         return "%s 모임에서 참가자가 나가 다시 모집해요.".formatted(quote(title));
     }
 
+    public static String timeChangeProposed(String title, String proposerNickname, String toStartAt) {
+        return "%s님이 %s 모임 시작 시각을 %s(으)로 바꾸자고 제안했어요.".formatted(proposerNickname, quote(title), toStartAt);
+    }
+
+    public static String timeChangeApproved(String title, String toStartAt) {
+        return "모두 수락해 %s 모임 시작 시각이 %s(으)로 바뀌었어요.".formatted(quote(title), toStartAt);
+    }
+
+    public static String timeChangeRejected(String title) {
+        return "%s 모임의 시작 시각 변경 제안이 거절됐어요. 원래 시각대로 진행해요.".formatted(quote(title));
+    }
+
+    public static String timeChangeWithdrawn(String title) {
+        return "%s 모임의 시작 시각 변경 제안이 철회됐어요.".formatted(quote(title));
+    }
+
+    public static String timeChangeExpired(String title) {
+        return "%s 모임의 시작 시각 변경 제안이 기한 안에 모두 수락되지 않아 무산됐어요.".formatted(quote(title));
+    }
+
+    public static String timeChangeRosterChanged(String title) {
+        return "참가자가 바뀌어 %s 모임의 시작 시각 변경 제안이 무산됐어요.".formatted(quote(title));
+    }
+
     public static String canceledMemberLeft(String title) {
         return "%s 모임에서 참가자가 나가 모임이 취소됐어요.".formatted(quote(title));
     }
