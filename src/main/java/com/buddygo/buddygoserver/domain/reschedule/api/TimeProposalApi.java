@@ -29,11 +29,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public interface TimeProposalApi {
 
     @Operation(summary = "시간 변경 제안", description = """
-            호스트 또는 확정 참가자가 새 시작 시각을 제안한다. 제안자는 수락한 것으로 치고 나머지 구성원에게 알림이 간다.
+            호스트 또는 확정 참가자가 바꾸고 싶은 시작 시각을 제안한다. 제안자는 수락한 것으로 치고 나머지 구성원에게 알림이 간다.
             - 확정 참가자(호스트 제외)가 1명 이상이고, 한 모임에 진행 중인 제안은 하나
-            - 새 시작 시각: 10분 단위, 지금 시작 시각과 다르고 앞뒤 1시간 안. 진행 시간은 그대로
-            - 마감: 체크인이 열리기 전(시작 10분 전)까지, 새 시작은 지금부터 30분 이후
-            - 모집중: 데드라인 전까지, 새 시작도 데드라인이 지나지 않는 시각(지금부터 1시간 30분 이후)
+            용어: 기존 시작 시각 = 지금 모임에 정해진 시각, 제안한 시작 시각 = 바꾸자고 제안한 시각, 현재 시각 = 지금 실제 시각
+            - 모든 모임: 기존 시작 시각에서 최대 1시간 앞당기거나 미룬다(10분 단위). 진행 시간은 그대로
+            - 마감 모임: 기존 시작 10분 전(체크인 열림)까지만. 제안한 시작 시각은 현재 시각보다 30분 넘게 뒤
+            - 모집중 모임: 기존 데드라인(기존 시작 1시간 30분 전)까지만. 제안한 시작 시각은 현재 시각보다 1시간 30분 넘게 뒤
             응답 기한(expiresAt)은 위 조건이 깨지는 가장 이른 시각이다. 그때까지 모두 수락하지 않으면 무산된다.""")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "제안 성공"),
@@ -51,7 +52,7 @@ public interface TimeProposalApi {
 
     @Operation(summary = "수락", description = """
             제안 시점 구성원만. 모두 수락하면 즉시 시작 시각이 바뀌고(status=APPROVED) 대기 신청은 자동 거절된다
-            (rejectReason=SCHEDULE_CHANGED). 데드라인은 새 시작 시각 기준으로 다시 계산된다.
+            (rejectReason=SCHEDULE_CHANGED). 데드라인은 바뀐 시작 시각 기준으로 다시 계산된다.
             그사이 확정 명단이 바뀌었으면 제안은 무산되고 status=CANCELED 로 돌려준다.""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "응답 반영"),
